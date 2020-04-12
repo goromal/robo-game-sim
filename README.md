@@ -1,5 +1,29 @@
 # Robo Game Sim
 
-...
+![](mindless-example.gif)
 
-[score_A score_B px_ball py_ball px_A1 py_A1 px_A2 py_A2 px_B1 py_B1 px_B2 py_B2]
+A minigame resembling multi-player air hockey for testing and developing optimal control and reinforcement learning algorithms.
+
+## Dependencies
+
+  * (CMake, C++ build tools, etc.)
+  * libeigen3-dev
+  * libyaml-cpp-dev
+  * libboost-all-dev
+
+## Installation
+
+To build the repository, execute the following
+
+```bash
+git clone --recurse-submodules https://github.com/goromal/robo-game-sim.git
+cd robo-game-sim/py
+cmake ..
+make
+```
+
+## Usage
+
+To run the sim and view the results, run the matlab script *matlab/visualize\_game.m*. Simulation parameters can be modified by changing the values in *param/ss_game_to_3.yaml* or by making a new YAML file and pointing to it in the matlab script.
+
+**More functionality coming soon!**
