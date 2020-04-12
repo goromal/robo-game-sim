@@ -1,0 +1,11 @@
+*.pyc
+py/CMakeFiles/*
+py/lib/*
+py/*.cmake
+py/CMakeCache.txt
+py/Makefile
+py/*.so
+py/internal-game
+CMakeLists.txt.user
+param/logs/*
+param/*.avi

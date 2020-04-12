@@ -1,0 +1,15 @@
+[submodule "lib/pybind11"]
+	path = lib/pybind11
+	url = https://github.com/pybind/pybind11.git
+[submodule "lib/logging-utils-lib"]
+	path = lib/logging-utils-lib
+	url = https://github.com/goromal/logging-utils-lib.git
+[submodule "lib/math-utils-lib"]
+	path = lib/math-utils-lib
+	url = https://github.com/goromal/math-utils-lib.git
+[submodule "lib/progress_bar"]
+	path = lib/progress_bar
+	url = https://github.com/superjax/progress_bar.git
+[submodule "matlab/matlab_utilities"]
+	path = matlab/matlab_utilities
+	url = https://github.com/goromal/matlab_utilities.git
