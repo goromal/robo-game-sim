@@ -29,7 +29,8 @@ private:
                    const Eigen::Vector2d &vel_B1, const Eigen::Vector2d &vel_B2);
     unsigned int checkWallCollisions();
     void checkAgentCollisions();
-    void collideElastically(const double &m1, const double &m2, Ref<Vector4d> x1, Ref<Vector4d> x2);
+    void collideElastically(const double &m1, const double &m2, const double &r1, const double &r2,
+                            Ref<Vector4d> x1, Ref<Vector4d> x2);
     double mass(const unsigned int &id);
     double radius(const unsigned int &id);
 

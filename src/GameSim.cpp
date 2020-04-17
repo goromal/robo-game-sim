@@ -230,18 +230,29 @@ void GameSim::checkAgentCollisions()
         if ((state_.arr.block<4,1>(ID1,0) - state_.arr.block<4,1>(ID2,0)).block<2,1>(0,0).norm()
             <= radius(ID1) + radius(ID2))
         {
-            collideElastically(mass(ID1), mass(ID2), state_.arr.block<4,1>(ID1,0), state_.arr.block<4,1>(ID2,0));
+            collideElastically(mass(ID1), mass(ID2), radius(ID1), radius(ID2),
+                               state_.arr.block<4,1>(ID1,0), state_.arr.block<4,1>(ID2,0));
         }
     }
     while(utils_math::next_combination(entities_.begin(), entities_.begin() + 2, entities_.end()));
 }
 
-void GameSim::collideElastically(const double &m1, const double &m2, Ref<Vector4d> x1, Ref<Vector4d> x2)
+void GameSim::collideElastically(const double &m1, const double &m2, const double &r1, const double &r2,
+                                 Ref<Vector4d> x1, Ref<Vector4d> x2)
 {
     Vector2d p1 = x1.block<2,1>(PX,0);
     Vector2d v1 = x1.block<2,1>(VX,0);
     Vector2d p2 = x2.block<2,1>(PX,0);
     Vector2d v2 = x2.block<2,1>(VX,0);
+
+    // Place at sufficient distance apart to avoid overlapping long-term
+    Vector2d p12 = p2 - p1; // vector from p1 -> p2
+    double np12 = p12.norm() - (r1 + r2); // negative if there's overlap
+    if (np12 < 0.0)
+    {
+        x1.block<2,1>(PX,0) += np12 / 2.0 * p12;
+        x2.block<2,1>(PX,0) -= np12 / 2.0 * p12;
+    }
 
     // https://en.wikipedia.org/wiki/Elastic_collision
     x1.block<2,1>(VX,0) = v1 - 2*m2/(m1+m2) * (v1-v2).dot(p1-p2)/(p1-p2).dot(p1-p2)*(p1-p2);
