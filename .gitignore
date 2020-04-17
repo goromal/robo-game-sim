@@ -9,3 +9,5 @@ py/internal-game
 CMakeLists.txt.user
 param/logs/*
 param/*.avi
+.idea/*
+cmake-build-debug/*

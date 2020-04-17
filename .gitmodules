@@ -13,3 +13,7 @@
 [submodule "matlab/matlab_utilities"]
 	path = matlab/matlab_utilities
 	url = https://github.com/goromal/matlab_utilities.git
+[submodule "lib/drake"]
+	path = lib/drake
+	url = git@github.com:RobotLocomotion/drake.git
+	branch = master

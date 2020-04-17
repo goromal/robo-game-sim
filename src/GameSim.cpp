@@ -108,7 +108,7 @@ void GameSim::run()
 
     Eigen::Vector2d vel_A1, vel_A2, vel_B1, vel_B2;
     HomeTeam_->runControl(t_, state_, vel_A1, vel_A2);
-    AwayTeam_->runControl(t_, state_, vel_B1, vel_B2);
+//    AwayTeam_->runControl(t_, state_, vel_B1, vel_B2);
     updateSim(vel_A1, vel_A2, vel_B1, vel_B2);
 }
 
