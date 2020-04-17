@@ -2,7 +2,7 @@
 
 GameSim::GameSim()
 {
-    HomeTeam_ = new ClassicalTeam();
+    HomeTeam_ = new ClassicalTeam(TEAM_A);
     AwayTeam_ = NULL;
     arena_X_ = 10.0;
     arena_Y_ = 5.0;
@@ -48,7 +48,7 @@ void GameSim::reset(const bool &external=true, const double &dt=0.05,
         if (AwayTeam_ != NULL)
             AwayTeam_->reset();
         else
-            AwayTeam_ = new ClassicalTeam();
+            AwayTeam_ = new ClassicalTeam(TEAM_B);
     }
 
     dt_ = dt;
