@@ -2,8 +2,10 @@
 
 GameSim::GameSim()
 {
-    HomeTeam_ = new ClassicalTeam(TEAM_A);
-    AwayTeam_ = NULL;
+  // Move team initialization below
+//    HomeTeam_ = new ClassicalTeam(TEAM_A);
+//    AwayTeam_ = NULL;
+
     arena_X_ = 10.0;
     arena_Y_ = 5.0;
     P_rad_ = 0.2;
@@ -20,6 +22,27 @@ GameSim::GameSim()
 
     puck_rk4_.setDynamics(&GameSim::f_puck, this);
     player_rk4_.setDynamics(&GameSim::f_player, this);
+
+    // Preparing discrete-time system matrices for drake's numerical solver
+    A_.resize(4, 4);
+    B_.resize(4, 2);
+    C_ = Eigen::MatrixXd::Identity(4, 4);
+    D_ = Eigen::MatrixXd::Zero(4,1);
+
+    A_ << 0, 0, 1, 0,
+          0, 0, 0, 1,
+          0, 0, -1/tau_player_, 0,
+          0, 0, 0, -1/tau_player_;
+    A_ = Eigen::MatrixXd::Identity(4, 4) + dt_ * A_;
+    B_ << 0, 0,
+          0, 0,
+          1/tau_player_, 0,
+          0, 1/tau_player_;
+    B_ *= dt_;
+
+    // Initialize teams
+    HomeTeam_ = new ClassicalTeam(TEAM_A, A_, B_, C_, D_, dt_);
+    AwayTeam_ = NULL;
 }
 
 GameSim::~GameSim()
@@ -48,7 +71,8 @@ void GameSim::reset(const bool &external=true, const double &dt=0.05,
         if (AwayTeam_ != NULL)
             AwayTeam_->reset();
         else
-            AwayTeam_ = new ClassicalTeam(TEAM_B);
+            // AwayTeam_ = new ClassicalTeam(TEAM_B);
+            AwayTeam_ = new ClassicalTeam(TEAM_B, A_, B_, C_, D_, dt_);
     }
 
     dt_ = dt;
@@ -108,7 +132,7 @@ void GameSim::run()
 
     Eigen::Vector2d vel_A1, vel_A2, vel_B1, vel_B2;
     HomeTeam_->runControl(t_, state_, vel_A1, vel_A2);
-//    AwayTeam_->runControl(t_, state_, vel_B1, vel_B2);
+    AwayTeam_->runControl(t_, state_, vel_B1, vel_B2);
     updateSim(vel_A1, vel_A2, vel_B1, vel_B2);
 }
 

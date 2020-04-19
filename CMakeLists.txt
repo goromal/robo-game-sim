@@ -4,6 +4,13 @@ project(robo-game-sim)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 find_package(Eigen3 REQUIRED)
+find_package(drake REQUIRED)
+if (drake_FOUND)
+    message(STATUS "Found drake." )
+    include_directories(${drake_INCLUDE_DIRS})
+endif (drake_FOUND)
+
+
 add_subdirectory(lib/pybind11)
 add_subdirectory(lib/math-utils-lib)
 add_subdirectory(lib/logging-utils-lib)
@@ -30,5 +37,9 @@ target_link_libraries(internal-game
   yaml-cpp
   stdc++fs
 )
+
+if (drake_FOUND)
+    target_link_libraries (internal-game ${drake_LIBRARIES})
+endif (drake_FOUND)
 
 # pybind11_add_module(robo_game_py src/RoboGamePy.cpp)

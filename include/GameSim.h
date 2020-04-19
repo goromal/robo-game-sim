@@ -61,4 +61,10 @@ private:
     ClassicalTeam* AwayTeam_;
     logging::Logger logger_;
 
+    // System matrices for drake solver
+    Eigen::MatrixXd A_;
+    Eigen::MatrixXd B_;
+    Eigen::MatrixXd C_;
+    Eigen::MatrixXd D_;
+
 };
