@@ -10,6 +10,7 @@ A minigame resembling multi-player air hockey for testing and developing optimal
   * libeigen3-dev
   * libyaml-cpp-dev
   * libboost-all-dev
+  * drake (follow https://github.com/RobotLocomotion/drake-external-examples/tree/master/drake_cmake_installed)
 
 ## Installation
 
