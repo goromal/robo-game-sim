@@ -22,6 +22,11 @@ public:
     // Sim Iteration via Internal Reasoning
     void run();
 
+    double get_arena_X() const {return arena_X_;};
+    double get_arena_Y() const {return arena_Y_;};
+    double get_puck_rad() const {return p_rad_;};
+    double get_player_rad() const {return P_rad_;};
+
 private:
     void f_player(Ref<VectorXd> xdot, const Ref<const VectorXd> &x, const Ref<const VectorXd> &u);
     void f_puck(Ref<VectorXd> xdot, const Ref<const VectorXd> &x, const Ref<const VectorXd> &u);
@@ -62,9 +67,9 @@ private:
     logging::Logger logger_;
 
     // System matrices for drake solver
-    Eigen::MatrixXd A_;
-    Eigen::MatrixXd B_;
-    Eigen::MatrixXd C_;
-    Eigen::MatrixXd D_;
+    Eigen::Matrix<double, 4, 4> A_;
+    Eigen::Matrix<double, 4, 2> B_;
+    Eigen::Matrix<double, 4, 4> C_;
+    Eigen::Matrix<double, 4, 2> D_;
 
 };

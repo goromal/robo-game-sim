@@ -2,9 +2,8 @@
 
 GameSim::GameSim()
 {
-  // Move team initialization below
-//    HomeTeam_ = new ClassicalTeam(TEAM_A);
-//    AwayTeam_ = NULL;
+    HomeTeam_ = NULL; //new ClassicalTeam(TEAM_A);
+    AwayTeam_ = NULL;
 
     arena_X_ = 10.0;
     arena_Y_ = 5.0;
@@ -23,26 +22,11 @@ GameSim::GameSim()
     puck_rk4_.setDynamics(&GameSim::f_puck, this);
     player_rk4_.setDynamics(&GameSim::f_player, this);
 
-    // Preparing discrete-time system matrices for drake's numerical solver
-    A_.resize(4, 4);
-    B_.resize(4, 2);
-    C_ = Eigen::MatrixXd::Identity(4, 4);
-    D_ = Eigen::MatrixXd::Zero(4,1);
-
-    A_ << 0, 0, 1, 0,
-          0, 0, 0, 1,
-          0, 0, -1/tau_player_, 0,
-          0, 0, 0, -1/tau_player_;
-    A_ = Eigen::MatrixXd::Identity(4, 4) + dt_ * A_;
-    B_ << 0, 0,
-          0, 0,
-          1/tau_player_, 0,
-          0, 1/tau_player_;
-    B_ *= dt_;
-
-    // Initialize teams
-    HomeTeam_ = new ClassicalTeam(TEAM_A, A_, B_, C_, D_, dt_);
-    AwayTeam_ = NULL;
+    // Default system matrices for Drake solver
+    A_.setIdentity();
+    B_.setZero();
+    C_.setIdentity();
+    D_.setZero();
 }
 
 GameSim::~GameSim()
@@ -56,8 +40,26 @@ void GameSim::reset(const bool &external=true, const double &dt=0.05,
                     const int &winning_score=3, const Eigen::Vector4d &x0_ball=Eigen::Vector4d::Zero(),
                     const bool &log=false, const std::string &logname="~/gamelog.log")
 {
+    bool dt_reset = dt!=dt_;
+
+    dt_ = dt;
+    t_ = 0.0;
+
+    // Based on new dt, prepare discrete-time system matrices for drake's numerical solver
+    if (dt_reset) {
+      A_ << 0, 0, 1, 0,
+          0, 0, 0, 1,
+          0, 0, -1/tau_player_, 0,
+          0, 0, 0, -1/tau_player_;
+      A_ = Eigen::MatrixXd::Identity(4, 4) + dt_ * A_;
+      B_ << 0, 0,
+          0, 0,
+          1/tau_player_, 0,
+          0, 1/tau_player_;
+      B_ *= dt_;
+    }
+
     external_ = external;
-    HomeTeam_->reset();
     if (external_)
     {
         if (AwayTeam_ != NULL)
@@ -68,15 +70,33 @@ void GameSim::reset(const bool &external=true, const double &dt=0.05,
     }
     else
     {
-        if (AwayTeam_ != NULL)
-            AwayTeam_->reset();
-        else
-            // AwayTeam_ = new ClassicalTeam(TEAM_B);
-            AwayTeam_ = new ClassicalTeam(TEAM_B, A_, B_, C_, D_, dt_);
+      if (HomeTeam_ != NULL) {
+        if (dt_reset) {
+          delete HomeTeam_;
+          HomeTeam_ = new ClassicalTeam(TEAM_A, A_, B_, C_, D_, dt_,
+              arena_X_, arena_Y_, P_rad_, p_rad_, goal_height_, arena_X_/2.0);
+        } else {
+          HomeTeam_->reset();
+        }
+      } else {
+        HomeTeam_ = new ClassicalTeam(TEAM_A, A_, B_, C_, D_, dt_,
+            arena_X_, arena_Y_, P_rad_, p_rad_, goal_height_, arena_X_/2.0);
+      }
+
+      if (AwayTeam_ != NULL) {
+        if (dt_reset) {
+          delete AwayTeam_;
+          AwayTeam_ = new ClassicalTeam(TEAM_B, A_, B_, C_, D_, dt_,
+              arena_X_, arena_Y_, P_rad_, p_rad_, goal_height_, -arena_X_/2.0);
+        } else {
+          AwayTeam_->reset();
+        }
+      } else {
+        AwayTeam_ = new ClassicalTeam(TEAM_B, A_, B_, C_, D_, dt_,
+            arena_X_, arena_Y_, P_rad_, p_rad_, goal_height_, -arena_X_/2.0);
+      }
     }
 
-    dt_ = dt;
-    t_ = 0.0;
     winning_score_ = winning_score;
     state_.TeamAScore = 0;
     state_.TeamBScore = 0;
