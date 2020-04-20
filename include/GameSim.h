@@ -48,6 +48,7 @@ private:
     double p_rad_;
     double goal_height_;
 
+    // ?? please comment on what these are
     double tau_player_;
     double tau_puck_;
     modeling::RK4<Vector4d> puck_rk4_;
@@ -62,7 +63,7 @@ private:
     double puck_mass_;
 
     SimState state_;
-    ClassicalTeam* HomeTeam_;
+    ClassicalTeam* HomeTeam_; // std::shared_ptr<ClassicalTeam> always better idea
     ClassicalTeam* AwayTeam_;
     logging::Logger logger_;
 

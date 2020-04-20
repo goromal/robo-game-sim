@@ -5,9 +5,9 @@ make_video = false; % will run slower than real-time if true
 
 close all
 
-yamlfile = strcat('../param/',params_name,'.yaml');
-logfile = strcat('../param/logs/',params_name,'.log');
-videofile = strcat('../param/',params_name,'.avi');
+yamlfile = strcat('../param/', params_name,'.yaml');
+logfile = strcat('../param/logs/', params_name,'.log');
+videofile = strcat('../param/', params_name,'.avi');
 
 % Add helpful libraries
 addpath(genpath('matlab_utilities'))
@@ -19,7 +19,7 @@ bx0        = paramsdata.x0_ball{1};
 by0        = paramsdata.x0_ball{2};
 
 % Run simulation
-system(['../py/internal-game ' yamlfile]);
+system(['./../py/internal-game ' yamlfile]);
 
 % Read output log file, sample at 20 FPS
 logdata = read_log(logfile, 13);
