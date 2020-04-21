@@ -2,8 +2,6 @@
 
 GameSim::GameSim()
 {
-    HomeTeam_ = new ClassicalTeam(TEAM_A);
-    AwayTeam_ = NULL;
     arena_X_ = 10.0;
     arena_Y_ = 5.0;
     P_rad_ = 0.2;
@@ -17,40 +15,14 @@ GameSim::GameSim()
     tau_player_ = 0.5;
     player_mass_ = 1.0;
     puck_mass_ = 0.5;
-
-    puck_rk4_.setDynamics(&GameSim::f_puck, this);
-    player_rk4_.setDynamics(&GameSim::f_player, this);
 }
 
-GameSim::~GameSim()
-{
-    delete HomeTeam_;
-    if (AwayTeam_ != NULL)
-        delete AwayTeam_;
-}
+GameSim::~GameSim() {}
 
-void GameSim::reset(const bool &external=true, const double &dt=0.05,
+Eigen::Matrix<double, SimState::SIZE, 1> GameSim::reset(const double &dt=0.05,
                     const int &winning_score=3, const Eigen::Vector4d &x0_ball=Eigen::Vector4d::Zero(),
                     const bool &log=false, const std::string &logname="~/gamelog.log")
 {
-    external_ = external;
-    HomeTeam_->reset();
-    if (external_)
-    {
-        if (AwayTeam_ != NULL)
-        {
-            delete AwayTeam_;
-            AwayTeam_ = NULL;
-        }
-    }
-    else
-    {
-        if (AwayTeam_ != NULL)
-            AwayTeam_->reset();
-        else
-            AwayTeam_ = new ClassicalTeam(TEAM_B);
-    }
-
     dt_ = dt;
     t_ = 0.0;
     winning_score_ = winning_score;
@@ -68,6 +40,7 @@ void GameSim::reset(const bool &external=true, const double &dt=0.05,
     else
         if (logger_.file_.is_open())
             logger_.file_.close();
+    return state_.vector();
 }
 
 bool GameSim::undecided()
@@ -75,7 +48,7 @@ bool GameSim::undecided()
     return (state_.TeamAScore < winning_score_) && (state_.TeamBScore < winning_score_);
 }
 
-void GameSim::f_player(Ref<VectorXd> xdot, const Ref<const VectorXd> &x, const Ref<const VectorXd> &u)
+void GameSim::f_player(Ref<Vector4d> xdot, const Ref<Vector4d> &x, const Vector2d &u)
 {
     xdot(PX,0) = x(VX,0);
     xdot(PY,0) = x(VY,0);
@@ -83,7 +56,27 @@ void GameSim::f_player(Ref<VectorXd> xdot, const Ref<const VectorXd> &x, const R
     xdot(VY,0) = (u(1,0) - x(VY,0)) / tau_player_;
 }
 
-void GameSim::f_puck(Ref<VectorXd> xdot, const Ref<const VectorXd> &x, const Ref<const VectorXd> &u)
+void GameSim::RK4_player(Ref<Vector4d> x, const Vector2d &u, const double &dt)
+{
+    static Vector4d k1, k2, k3, k4, x2, x3, x4;
+    f_player(k1, x, u);
+
+    x2 = x;
+    x2 += k1 * (dt/2.0);
+    f_player(k2, x2, u);
+
+    x3 = x;
+    x3 += k2 * (dt/2.0);
+    f_player(k3, x3, u);
+
+    x4 = x;
+    x4 += k3 * dt;
+    f_player(k4, x4, u);
+
+    x += (k1 + k2*2.0 + k3*2.0 + k4) * (dt / 6.0);
+}
+
+void GameSim::f_puck(Ref<Vector4d> xdot, const Ref<Vector4d> &x, const Vector2d &u)
 {
     xdot(PX,0) = x(VX,0);
     xdot(PY,0) = x(VY,0);
@@ -91,36 +84,43 @@ void GameSim::f_puck(Ref<VectorXd> xdot, const Ref<const VectorXd> &x, const Ref
     xdot(VY,0) = (u(1,0) - 0.2 * x(VY,0)) / tau_puck_;
 }
 
-Eigen::Matrix<double, SimState::SIZE, 1> GameSim::setAwayTeamVelocities(const Eigen::Vector2d &vel_B1, const Eigen::Vector2d &vel_B2)
+void GameSim::RK4_puck(Ref<Vector4d> x, const Vector2d &u, const double &dt)
 {
-    assert(external_);
+    static Vector4d k1, k2, k3, k4, x2, x3, x4;
+    f_puck(k1, x, u);
 
-    Eigen::Vector2d vel_A1, vel_A2;
-    HomeTeam_->runControl(t_, state_, vel_A1, vel_A2);
-    updateSim(vel_A1, vel_A2, vel_B1, vel_B2);
+    x2 = x;
+    x2 += k1 * (dt/2.0);
+    f_puck(k2, x2, u);
 
-    return state_.vector();
+    x3 = x;
+    x3 += k2 * (dt/2.0);
+    f_puck(k3, x3, u);
+
+    x4 = x;
+    x4 += k3 * dt;
+    f_puck(k4, x4, u);
+
+    x += (k1 + k2*2.0 + k3*2.0 + k4) * (dt / 6.0);
 }
 
-void GameSim::run()
+Eigen::Matrix<double, SimState::SIZE, 1> GameSim::run(const Eigen::Vector2d &vel_A1, const Eigen::Vector2d &vel_A2,
+                                                      const Eigen::Vector2d &vel_B1, const Eigen::Vector2d &vel_B2)
 {
-    assert(!external_);
-
-    Eigen::Vector2d vel_A1, vel_A2, vel_B1, vel_B2;
-    HomeTeam_->runControl(t_, state_, vel_A1, vel_A2);
-    AwayTeam_->runControl(t_, state_, vel_B1, vel_B2);
-    updateSim(vel_A1, vel_A2, vel_B1, vel_B2);
+    if (undecided())
+        updateSim(vel_A1, vel_A2, vel_B1, vel_B2);
+    return state_.vector();
 }
 
 void GameSim::updateSim(const Eigen::Vector2d &vel_A1, const Eigen::Vector2d &vel_A2,
                         const Eigen::Vector2d &vel_B1, const Eigen::Vector2d &vel_B2)
 {
     // Update entity dynamics
-    player_rk4_.run(state_.arr.block<4,1>(SimState::A1,0), vel_A1, dt_);
-    player_rk4_.run(state_.arr.block<4,1>(SimState::A2,0), vel_A2, dt_);
-    player_rk4_.run(state_.arr.block<4,1>(SimState::B1,0), vel_B1, dt_);
-    player_rk4_.run(state_.arr.block<4,1>(SimState::B2,0), vel_B2, dt_);
-    puck_rk4_.run(state_.arr.block<4,1>(SimState::PK,0), Vector2d(0., 0.), dt_);
+    RK4_player(state_.arr.block<4,1>(SimState::A1,0), vel_A1, dt_);
+    RK4_player(state_.arr.block<4,1>(SimState::A2,0), vel_A2, dt_);
+    RK4_player(state_.arr.block<4,1>(SimState::B1,0), vel_B1, dt_);
+    RK4_player(state_.arr.block<4,1>(SimState::B2,0), vel_B2, dt_);
+    RK4_puck(state_.arr.block<4,1>(SimState::PK,0), Vector2d(0., 0.), dt_);
 
     // Handle inter-agent-inter-puck collisions
     checkAgentCollisions();
@@ -234,7 +234,7 @@ void GameSim::checkAgentCollisions()
                                state_.arr.block<4,1>(ID1,0), state_.arr.block<4,1>(ID2,0));
         }
     }
-    while(utils_math::next_combination(entities_.begin(), entities_.begin() + 2, entities_.end()));
+    while(next_combination(entities_.begin(), entities_.begin() + 2, entities_.end()));
 }
 
 void GameSim::collideElastically(const double &m1, const double &m2, const double &r1, const double &r2,

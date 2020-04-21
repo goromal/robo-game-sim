@@ -1,8 +1,12 @@
 #pragma once
 #include <Eigen/Core>
+#include "utils.h"
+#include <vector>
 
 enum {PX = 0, PY = 1, VX = 2, VY = 3};
 enum {TEAM_A = 0, TEAM_B = 1};
+
+using namespace Eigen;
 
 struct SimState
 {
@@ -43,3 +47,4 @@ struct SimState
         return arr;
     }
 };
+

@@ -6,6 +6,8 @@ py/CMakeCache.txt
 py/Makefile
 py/*.so
 py/internal-game
+py/*.cbp
 CMakeLists.txt.user
-param/logs/*
-param/*.avi
+**/*.log
+**/*.avi
+

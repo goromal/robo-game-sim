@@ -1,11 +1,6 @@
 #pragma once
 #include <Eigen/Core>
-#include <assert.h>
-#include <logging-utils-lib/logging.h>
-#include <math-utils-lib/modeling.h>
-#include <math-utils-lib/tools.h>
 #include "SimState.h"
-#include "ClassicalTeam.h"
 
 enum {NO_SCORE, TEAM_A_SCORE, TEAM_B_SCORE};
 
@@ -14,17 +9,17 @@ class GameSim
 public:
     GameSim();
     ~GameSim();
-    void reset(const bool &external, const double &dt, const int &winning_score,
+    Eigen::Matrix<double, SimState::SIZE, 1> reset(const double &dt, const int &winning_score,
                const Eigen::Vector4d &x0_ball, const bool &log, const std::string &logname);
     bool undecided();
-    // Sim Iteration via External Reasoning
-    Eigen::Matrix<double, 22, 1> setAwayTeamVelocities(const Eigen::Vector2d &vel_B1, const Eigen::Vector2d &vel_B2);
-    // Sim Iteration via Internal Reasoning
-    void run();
+    Eigen::Matrix<double, SimState::SIZE, 1> run(const Eigen::Vector2d &vel_A1, const Eigen::Vector2d &vel_A2,
+                                                 const Eigen::Vector2d &vel_B1, const Eigen::Vector2d &vel_B2);
 
 private:
-    void f_player(Ref<VectorXd> xdot, const Ref<const VectorXd> &x, const Ref<const VectorXd> &u);
-    void f_puck(Ref<VectorXd> xdot, const Ref<const VectorXd> &x, const Ref<const VectorXd> &u);
+    void f_player(Ref<Vector4d> xdot, const Ref<Vector4d> &x, const Vector2d &u);
+    void f_puck(Ref<Vector4d> xdot, const Ref<Vector4d> &x, const Vector2d &u);
+    void RK4_player(Ref<Vector4d> x, const Vector2d &u, const double &dt);
+    void RK4_puck(Ref<Vector4d> x, const Vector2d &u, const double &dt);
     void updateSim(const Eigen::Vector2d &vel_A1, const Eigen::Vector2d &vel_A2,
                    const Eigen::Vector2d &vel_B1, const Eigen::Vector2d &vel_B2);
     unsigned int checkWallCollisions();
@@ -45,10 +40,7 @@ private:
 
     double tau_player_;
     double tau_puck_;
-    modeling::RK4<Vector4d> puck_rk4_;
-    modeling::RK4<Vector4d> player_rk4_;
 
-    bool external_;
     bool log_;
     double dt_;
     double t_;
@@ -57,8 +49,6 @@ private:
     double puck_mass_;
 
     SimState state_;
-    ClassicalTeam* HomeTeam_;
-    ClassicalTeam* AwayTeam_;
-    logging::Logger logger_;
+    Logger logger_;
 
 };
