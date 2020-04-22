@@ -52,6 +52,7 @@ class ClassicalPlayer:
     # Returns if optimization was successfull or not
     def timed_kick(self, state, time_to_kick):
         p_puck = state.get_puck_pos()
+        print("puck pos:", p_puck)
         p_goal = self.get_adversary_goal_pos()
 
         # shoot direction
@@ -63,7 +64,7 @@ class ClassicalPlayer:
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
         pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius)
-        vf = 4.0*shoot_direction
+        vf = 3.0*shoot_direction
         T = time_to_kick
   
         # Store trajectory and reset execution timer
@@ -96,14 +97,15 @@ class ClassicalPlayer:
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
 
-        pf = state.get_puck_pos()
+        pf_y = state.get_puck_pos()[1]
         defense_line = 0.3
+        pf_x = 0.0
         if self.field > 0:
-            pf[0] = self.params.arena_limits_x/2.0 - defense_line
+            pf_x = self.params.arena_limits_x/2.0 - defense_line
         else:
-            pf[0] = -self.params.arena_limits_x/2.0 + defense_line
+            pf_x = -self.params.arena_limits_x/2.0 + defense_line
 
-        successfull, self.u_traj = self.linear_optimizer.min_time_traj(p0, v0, pf, None)
+        successfull, self.u_traj = self.linear_optimizer.min_time_traj(p0, v0, np.array([pf_x, pf_y]), None,  None)
         self.t_idx = 0
 
         return successfull
