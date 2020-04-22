@@ -51,8 +51,7 @@ while t < params.T:
 
     # run the simulator, returns vector with all sim info
     sim_state = SimState(sim.run(velA1, velA2, velB1, velB2))
-    #print(sim_state.transpose())
-    print(sim_state.get_puck_pos())
+    print(sim_state.transpose())
 
     t += params.dt
 

@@ -50,7 +50,6 @@ class ClassicalTeam:
         elif self.curr_play == "offense":
             if self.player.is_idle():
                 self.player.timed_kick(state, 2.0)
-                print("Timed kick towards puck which is at", state.get_puck_pos())
             self.goalie.defend(state)
 
         elif self.curr_play == "defense":

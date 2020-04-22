@@ -52,11 +52,10 @@ class ClassicalPlayer:
     # Returns if optimization was successfull or not
     def timed_kick(self, state, time_to_kick):
         p_puck = state.get_puck_pos()
-        print("puck pos:", p_puck)
         p_goal = self.get_adversary_goal_pos()
 
         # shoot direction
-        shoot_direction = np.array([p_goal[0], 0.0]) - p_puck
+        shoot_direction = p_goal - p_puck
         if np.linalg.norm(shoot_direction) > 1e-4:
             shoot_direction/=np.linalg.norm(shoot_direction)
 
@@ -64,7 +63,7 @@ class ClassicalPlayer:
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
         pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius)
-        vf = 3.0*shoot_direction
+        vf = 2.5*shoot_direction
         T = time_to_kick
   
         # Store trajectory and reset execution timer
@@ -114,9 +113,9 @@ class ClassicalPlayer:
     def get_adversary_goal_pos(self):
         # TODO: define game parameter class and pass it around
         if self.field > 0:
-            return np.array([-self.params.arena_limits_x/2.0, -self.params.arena_limits_y/2.0])
+            return np.array([-self.params.arena_limits_x/2.0, 0.0])
         else :
-            return np.array([self.params.arena_limits_x/2.0, self.params.arena_limits_y/2.0])
+            return np.array([self.params.arena_limits_x/2.0, 0.0])
 
 
 
