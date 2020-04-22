@@ -16,12 +16,7 @@ class LinearOptimizer:
     # given initial state, final state, final time (Jeremy's)
     def intercepting_traj(self, p0, v0, pf, vf, T):
         x0 = np.concatenate((p0, v0), axis=0)
-        print("x0", x0)
-        print("p0", p0)
-        print("N", int(T/self.params.dt))
         xf = np.concatenate((pf, vf), axis=0)
-        print("xf", xf)
-        
         prog = DirectTranscription(self.sys, self.sys.CreateDefaultContext(), int(T/self.params.dt))
         prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())
         prog.AddBoundingBoxConstraint(xf, xf, prog.final_state())
@@ -46,8 +41,8 @@ class LinearOptimizer:
     
     # TODO: minimum time trajectory
     # given initial state, final state
-    #def min_time_traj(self, x0, v0, xf, vf):
-    #   return False
+    def min_time_traj(self, x0, v0, xf, vf):
+       return False
 
     def add_input_limits(self, prog):
         prog.AddConstraintToAllKnotPoints(prog.input()[0] <= self.params.input_limit)
