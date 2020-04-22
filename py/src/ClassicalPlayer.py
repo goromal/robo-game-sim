@@ -1,0 +1,109 @@
+import numpy as np
+from src.LinearOptimizer import LinearOptimizer
+
+class ClassicalPlayer:
+    def __init__(self, params, field, team, player_id, state):
+        # player parameters
+        self.params = params
+        self.field = field          # on which side of the arena the player plays
+        self.team = team            # A or B
+        self.player_id = player_id  # 1 or 2
+
+        # Latest generated trajectory and time index associated with it
+        self.u_traj = np.zeros((2,1))
+        self.t_idx = 0 # indec at which the trajectory needs to be evaluated
+
+        # Optimizers
+        self.linear_optimizer = LinearOptimizer(self.params)
+
+    # Return latest control action and 
+    # percentage of completion of current action.
+    # Has to be called at 1/dt rate. 
+    def get_control(self):
+
+        percentage_completed = self.task_percentage_completed() # 1.0 when current trajectory is completed
+        
+        if percentage_completed <= 1.0: 
+            u_cmd = self.u_traj[:, self.t_idx]
+            self.t_idx += 1
+            return u_cmd, percentage_completed
+
+        # if we are here is because we have completed current trajectory....
+        # Let's go idle
+        self.idle()
+        return self.u_traj[:,self.t_idx], 1.0
+
+    # Check if player is free or busy executing some long open-loop actions
+    def is_idle(self):
+        if self.task_percentage_completed() >= 1.0:
+            return True
+        else :
+            return False
+        
+    # percentage of task completion 
+    def task_percentage_completed(self):
+        print(len(self.u_traj[0,:]))
+        return (self.t_idx+1)/len(self.u_traj[0,:]) # > 1.0 when current trajectory is completed
+
+    ###########################################################################
+    ### All the methods below here generate a trajectory (of length one or more)
+    ### Updating the self.u_traj and setting self.t_idx = 0
+
+    # Generate trajectory and stores it in the class state
+    # Returns if optimization was successfull or not
+    def timed_kick(self, state, time_to_kick):
+        p_puck = state.get_puck_pos()
+        p_goal = self.get_goal_pos()
+
+        # shoot direction
+        shoot_direction = np.array([p_goal[0], 0.0]) - p_puck
+        if np.linalg.norm(shoot_direction) > 1e-4:
+            shoot_direction/=np.linalg.norm(shoot_direction)
+
+        # Jeremy's timed kick
+        p0 = state.get_player_pos(self.team, self.player_id)
+        v0 = state.get_player_vel(self.team, self.player_id)
+        pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius)
+        vf = 1.5*shoot_direction
+        T = time_to_kick
+  
+        # Store trajectory and reset execution timer
+        successfull, self.u_traj = self.linear_optimizer.intercepting_traj(p0, v0, pf, vf, T)
+        self.t_idx = 0
+
+        return successfull
+    
+    # player stays where it is
+    def idle(self):
+
+        self.u_traj = np.zeros((2, 1))
+        self.t_idx = 0
+
+        # return successfully generated
+        return True
+
+    # TODO tries to reach and hit the ball in minimum time
+    # regardless of final velocity
+    def simple_kick(self, state):
+
+        # Minimum time trajector from player to ball?
+
+        return False
+
+
+    # TODO stays in front of the goal trying to intercept the ball
+    def defend(self, state):
+
+
+        return False
+
+    def get_goal_pos(self):
+        # TODO: define game parameter class and pass it around
+        if self.field > 0:
+            return np.array([self.params.arena_limits_x/2.0, self.params.arena_limits_y/2.0])
+        else :
+            return np.array([-self.params.arena_limits_x/2.0, -self.params.arena_limits_y/2.0])
+
+
+
+
