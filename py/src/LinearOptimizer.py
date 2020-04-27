@@ -16,12 +16,7 @@ class LinearOptimizer:
     # given initial state, final state, final time (Jeremy's)
     def intercepting_traj(self, p0, v0, pf, vf, T):
         x0 = np.concatenate((p0, v0), axis=0)
-        print("x0", x0)
-        print("p0", p0)
-        print("N", int(T/self.params.dt))
         xf = np.concatenate((pf, vf), axis=0)
-        print("xf", xf)
-        
         prog = DirectTranscription(self.sys, self.sys.CreateDefaultContext(), int(T/self.params.dt))
         prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())
         prog.AddBoundingBoxConstraint(xf, xf, prog.final_state())
@@ -42,12 +37,29 @@ class LinearOptimizer:
             print("Intercepting trajectory: optimization failed")
 
         u_values = u_sol.vector_values(u_sol.get_segment_times())
-        return result.is_success(), u_values 
+        return result.is_success(), u_values
     
     # TODO: minimum time trajectory
-    # given initial state, final state
-    #def min_time_traj(self, x0, v0, xf, vf):
-    #   return False
+    # Reach a certain position in minimum time, regardless of anything else.
+    def min_time_traj(self, p0, v0, pf, vf, xlim=None, ylim=None):
+        T = 1
+        x0 = np.concatenate((p0, v0), axis=0)
+        prog = DirectTranscription(self.sys, self.sys.CreateDefaultContext(), int(T/self.params.dt))
+        prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state()) # initial states
+        prog.AddBoundingBoxConstraint(pf, pf, prog.final_state()[0:2])
+
+        self.add_input_limits(prog)
+        self.add_arena_limits(prog)
+
+        prog.AddRunningCost(prog.input()[0]*prog.input()[0])
+
+        result = Solve(prog)
+        u_sol = prog.ReconstructInputTrajectory(result)
+        if not result.is_success():
+            print("Minimum time trajectory: optimization failed")
+
+        u_values = u_sol.vector_values(u_sol.get_segment_times())
+        return result.is_success(), u_values
 
     def add_input_limits(self, prog):
         prog.AddConstraintToAllKnotPoints(prog.input()[0] <= self.params.input_limit)
@@ -61,5 +73,4 @@ class LinearOptimizer:
         prog.AddConstraintToAllKnotPoints(prog.state()[0] - r >= -self.params.arena_limits_x/2.0)
         prog.AddConstraintToAllKnotPoints(prog.state()[1] + r <= self.params.arena_limits_y/2.0)
         prog.AddConstraintToAllKnotPoints(prog.state()[1] -r >= -self.params.arena_limits_y/2.0)
-
     

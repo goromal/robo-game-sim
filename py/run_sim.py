@@ -32,8 +32,8 @@ sim.reset(params.dt, params.winning_score, params.x0_ball, params.log, params.lo
 sim_state = SimState(sim.run(np.zeros(2), np.zeros(2), np.zeros(2), np.zeros(2)))
 
 # Create two teams
-home_team = ClassicalTeam(params, 1, "A", sim_state) # left field
-away_team = ClassicalTeam(params, -1, "B", sim_state)  # right field
+home_team = ClassicalTeam(params, -1, "A", sim_state) # team A defend left goal
+away_team = ClassicalTeam(params, 1, "B", sim_state)  # team B defend right goal
 
 # Run the simulator for the full time
 t = 0.0
@@ -41,16 +41,18 @@ while t < params.T:
 
     # Compute velocity for each team
     velA1, velA2 = home_team.run(sim_state)
-    #velB1, velB2 = away_team.run(sim_state)
+    velB1, velB2 = away_team.run(sim_state)
     
     # commanded velocities for team A and team B
     #velA1 = np.array([cos(t),sin(t)])
     #velA2 = np.array([cos(t),sin(t)])
-    velB1 = np.array([cos(t),sin(t)])
-    velB2 = np.array([cos(t),sin(t)])
+    #velB1 = np.array([cos(t),sin(t)])
+    #velB2 = np.array([cos(t),sin(t)])
 
     # run the simulator, returns vector with all sim info
     sim_state = SimState(sim.run(velA1, velA2, velB1, velB2))
     print(sim_state.transpose())
 
     t += params.dt
+
+
