@@ -33,6 +33,10 @@ Eigen::Matrix<double, SimState::SIZE, 1> GameSim::reset(const double &dt=0.05,
     state_.x_A2 = Eigen::Vector4d(-arena_X_/4.0, -arena_Y_/4.0, 0.0, 0.0);
     state_.x_B1 = Eigen::Vector4d( arena_X_/4.0,  arena_Y_/4.0, 0.0, 0.0);
     state_.x_B2 = Eigen::Vector4d( arena_X_/4.0, -arena_Y_/4.0, 0.0, 0.0);
+    state_.A1_collisions = 0;
+    state_.A2_collisions = 0;
+    state_.B1_collisions = 0;
+    state_.B2_collisions = 0;
 
     log_ = log;
     if (log_)
@@ -232,6 +236,14 @@ void GameSim::checkAgentCollisions()
         {
             collideElastically(mass(ID1), mass(ID2), radius(ID1), radius(ID2),
                                state_.arr.block<4,1>(ID1,0), state_.arr.block<4,1>(ID2,0));
+            if (ID1 == SimState::A1 || ID2 == SimState::A1)
+                state_.A1_collisions += 1;
+            if (ID1 == SimState::A2 || ID2 == SimState::A2)
+                state_.A2_collisions += 1;
+            if (ID1 == SimState::B1 || ID2 == SimState::B1)
+                state_.B1_collisions += 1;
+            if (ID1 == SimState::B2 || ID2 == SimState::B2)
+                state_.B2_collisions += 1;
         }
     }
     while(next_combination(entities_.begin(), entities_.begin() + 2, entities_.end()));
