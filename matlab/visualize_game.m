@@ -1,25 +1,22 @@
-params_name = 'ss_game_to_3';
+logfile = 'minimal_game.log';
 make_video = false; % will run slower than real-time if true
+videofile = 'minimal_game.avi';
+% These parameters should match what you ran your single-run sim with:
+T = 20.0;
+dt = 0.05;
+max_score = 4;
+bx0 = 0.0;
+by0 = 0.0;
 
 %% VISUALIZE INTERNAL GAME AT 20 FPS
 
 close all
 
-yamlfile = strcat('../param/',params_name,'.yaml');
-logfile = strcat('../param/logs/',params_name,'.log');
-videofile = strcat('../param/',params_name,'.avi');
-
 % Add helpful libraries
 addpath(genpath('matlab_utilities'))
 
-% Read yaml file
-paramsdata = ReadYaml(yamlfile);
-max_score  = paramsdata.winning_score;
-bx0        = paramsdata.x0_ball{1};
-by0        = paramsdata.x0_ball{2};
-
 % Run simulation
-system(['../py/internal-game ' yamlfile]);
+system('../py/run_sim.py');
 
 % Read output log file, sample at 20 FPS
 logdata = read_log(logfile, 13);

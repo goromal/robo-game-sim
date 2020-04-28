@@ -8,8 +8,6 @@ A minigame resembling multi-player air hockey for testing and developing optimal
 
   * (CMake, C++ build tools, etc.)
   * libeigen3-dev
-  * libyaml-cpp-dev
-  * libboost-all-dev
 
 ## Installation
 
@@ -24,6 +22,6 @@ make
 
 ## Usage
 
-To run the sim and view the results, run the matlab script *matlab/visualize\_game.m*. Simulation parameters can be modified by changing the values in *param/ss_game_to_3.yaml* or by making a new YAML file and pointing to it in the matlab script.
+To run the sim and view the results, run the matlab script *matlab/visualize\_game.m*. 
 
 **More functionality coming soon!**
