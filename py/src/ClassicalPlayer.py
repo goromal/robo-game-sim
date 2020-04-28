@@ -50,20 +50,17 @@ class ClassicalPlayer:
 
     # Generate trajectory and stores it in the class state
     # Returns if optimization was successfull or not
-    def timed_kick(self, state, time_to_kick):
+    def timed_kick(self, state, kick_velocity, time_to_kick):
         p_puck = state.get_puck_pos()
         p_goal = self.get_adversary_goal_pos()
 
-        # shoot direction
-        shoot_direction = p_goal - p_puck
-        if np.linalg.norm(shoot_direction) > 1e-4:
-            shoot_direction/=np.linalg.norm(shoot_direction)
+        shoot_direction = self.get_shoot_direction(p_goal, p_puck)
 
         # Jeremy's timed kick
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
         pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius)
-        vf = 2.5*shoot_direction
+        vf = kick_velocity*shoot_direction
         T = time_to_kick
   
         # Store trajectory and reset execution timer
@@ -83,12 +80,24 @@ class ClassicalPlayer:
 
     # TODO tries to reach and hit the ball in minimum time
     # with maximum possible final velocity
-    def simple_kick(self, state):
+    def simple_kick(self, state, kick_velocity):
+        """Minimum time trajectory with desired final velocity pointing towards goal"""
+        p_puck = state.get_puck_pos()
+        p_goal = self.get_adversary_goal_pos()
 
-        # Minimum time trajector from player to ball?
+        shoot_direction = self.get_shoot_direction(p_goal, p_puck)
 
-        return False
+        # Jeremy's timed kick
+        p0 = state.get_player_pos(self.team, self.player_id)
+        v0 = state.get_player_vel(self.team, self.player_id)
+        pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius)
+        vf = kick_velocity*shoot_direction
+  
+        # Store trajectory and reset execution timer
+        successfull, self.u_traj = self.linear_optimizer.min_time_traj(p0, v0, pf, vf)
+        self.t_idx = 0
 
+        return successfull
 
     # TODO stays in front of the goal trying to intercept the ball
     def defend(self, state):
@@ -104,7 +113,7 @@ class ClassicalPlayer:
         else:
             pf_x = -self.params.arena_limits_x/2.0 + defense_line
 
-        successfull, self.u_traj = self.linear_optimizer.min_time_traj(p0, v0, np.array([pf_x, pf_y]), None,  None)
+        successfull, self.u_traj = self.linear_optimizer.min_time_traj(p0, v0, np.array([pf_x, pf_y]), np.zeros(2),  None)
         self.t_idx = 0
 
         return successfull
@@ -116,6 +125,13 @@ class ClassicalPlayer:
             return np.array([-self.params.arena_limits_x/2.0, 0.0])
         else :
             return np.array([self.params.arena_limits_x/2.0, 0.0])
+
+    def get_shoot_direction(self, p_goal, p_puck):
+        """Returns direction to kick to reach goal"""
+        shoot_direction = p_goal - p_puck
+        if np.linalg.norm(shoot_direction) > 1e-4:
+            shoot_direction/=np.linalg.norm(shoot_direction)
+        return shoot_direction
 
 
 

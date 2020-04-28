@@ -44,14 +44,15 @@ class LinearOptimizer:
     def min_time_traj(self, p0, v0, pf, vf, xlim=None, ylim=None):
         T = 1
         x0 = np.concatenate((p0, v0), axis=0)
+        xf = np.concatenate((pf, vf), axis=0)
         prog = DirectTranscription(self.sys, self.sys.CreateDefaultContext(), int(T/self.params.dt))
-        prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state()) # initial states
-        prog.AddBoundingBoxConstraint(pf, pf, prog.final_state()[0:2])
+        prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())     # initial states
+        prog.AddBoundingBoxConstraint(xf, xf, prog.final_state())       
 
         self.add_input_limits(prog)
         self.add_arena_limits(prog)
 
-        prog.AddRunningCost(prog.input()[0]*prog.input()[0])
+        prog.AddFinalCost(prog.time())
 
         result = Solve(prog)
         u_sol = prog.ReconstructInputTrajectory(result)

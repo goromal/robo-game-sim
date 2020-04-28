@@ -25,12 +25,13 @@ class ClassicalTeam:
         else:
             self.execute(state)
 
-        # # Call state transitions for goalie
-        # self.goalie.idle() # this will tell the goalie to do nothing
-        #
-        # # Plan an open loop kick if not doing it already!
-        # if self.player.is_idle():
-        #     self.player.timed_kick(state, 1.0)
+        ## # Call state transitions for goalie
+        #if self.goalie.is_idle():
+        #    self.goalie.defend(state)
+
+        ## # Plan an open loop kick if not doing it already!
+        #if self.player.is_idle():
+        #     self.player.simple_kick(state, 2.0)
         
         # Do not change below here
         vel_goalie, _ = self.goalie.get_control()
@@ -49,7 +50,8 @@ class ClassicalTeam:
 
         elif self.curr_play == "offense":
             if self.player.is_idle():
-                self.player.timed_kick(state, 2.0)
+                #self.player.timed_kick(state, 2.0)
+                self.player.simple_kick(state,  3.0)
             self.goalie.defend(state)
 
         elif self.curr_play == "defense":
