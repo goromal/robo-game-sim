@@ -10,6 +10,7 @@ class ClassicalTeam:
         self.player = ClassicalPlayer(params, field, self.team, 2, state)
 
         self.curr_play = "idle" # one of ["idle", "offense", "defense"]
+        self.kick_velocity = 4.5
 
     # Main team logic. Takes sim_state and returns vel cmds.
     def run(self, state):
@@ -50,8 +51,8 @@ class ClassicalTeam:
 
         elif self.curr_play == "offense":
             if self.player.is_idle():
-                #self.player.timed_kick(state, 2.0)
-                self.player.simple_kick(state,  3.0)
+                self.player.timed_kick_avoiding_obs(state, 4.0, 2.0)
+                #self.player.simple_kick(state,  self.kick_velocity) # 
             self.goalie.defend(state)
 
         elif self.curr_play == "defense":

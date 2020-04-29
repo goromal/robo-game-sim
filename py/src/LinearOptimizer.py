@@ -42,10 +42,12 @@ class LinearOptimizer:
     # TODO: minimum time trajectory
     # Reach a certain position in minimum time, regardless of anything else.
     def min_time_traj(self, p0, v0, pf, vf, xlim=None, ylim=None):
+        """generate minimum time trajectory while avoiding obs"""
         T = 1
+        N = int(T/self.params.dt)
         x0 = np.concatenate((p0, v0), axis=0)
         xf = np.concatenate((pf, vf), axis=0)
-        prog = DirectTranscription(self.sys, self.sys.CreateDefaultContext(), int(T/self.params.dt))
+        prog = DirectTranscription(self.sys, self.sys.CreateDefaultContext(), N)
         prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())     # initial states
         prog.AddBoundingBoxConstraint(xf, xf, prog.final_state())       
 

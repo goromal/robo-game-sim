@@ -67,9 +67,28 @@ class ClassicalPlayer:
   
         # Store trajectory and reset execution timer
         successfull, self.u_traj = self.linear_optimizer.intercepting_traj(p0, v0, pf, vf, T)
+
+
+    def timed_kick_avoiding_obs(self, state, kick_velocity, time_to_kick):
+        p_puck = state.get_puck_pos()
+        p_goal = self.get_adversary_goal_pos()
+
+        shoot_direction = self.get_shoot_direction(p_goal, p_puck)
+
+        p0 = state.get_player_pos(self.team, self.player_id)
+        v0 = state.get_player_vel(self.team, self.player_id)
+        pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius)
+        vf = kick_velocity*shoot_direction
+        T = time_to_kick
+
+        # define obstacles to avoid:
+        other_players = self.get_pos_of_other_players(state)
+
+        successfull, self.u_traj = self.miqp_optimizer.intercepting_with_obs_avoidance(p0, v0, pf, vf, time_to_kick, other_players, p_puck)
         self.t_idx = 0
 
         return successfull
+        
     
     # player stays where it is
     def idle(self):
@@ -95,8 +114,7 @@ class ClassicalPlayer:
         vf = kick_velocity*shoot_direction
   
         # Store trajectory and reset execution timer
-        #successfull, self.u_traj = self.linear_optimizer.min_time_traj(p0, v0, pf, vf)
-        successfull, self.u_traj = self.miqp_optimizer.intercepting_with_obs_avoidance(p0, v0, pf, vf, p_puck, 1.0)
+        successfull, self.u_traj = self.linear_optimizer.min_time_traj(p0, v0, pf, vf)
         self.t_idx = 0
 
         return successfull
@@ -134,6 +152,31 @@ class ClassicalPlayer:
         if np.linalg.norm(shoot_direction) > 1e-4:
             shoot_direction/=np.linalg.norm(shoot_direction)
         return shoot_direction
+
+    def get_pos_of_other_players(self, state):
+        positions = list()
+        positions.append(state.get_player_pos(self.team, self.get_teammate_id()))
+        positions.append(state.get_player_pos(self.get_adversary_team(), 1))
+        positions.append(state.get_player_pos(self.get_adversary_team(), 2))
+        return positions
+
+    def get_adversary_team(self):
+        """Returns the team adversary to the player's team"""
+        if self.team == "A":
+            return "B"
+        elif self.team == "B":
+            return "A"
+        else:
+            raise Exception("Team not recognized! Team can either be \"A\" or \"B\"")
+
+    def get_teammate_id(self):
+        """Returns the other team mate of the current player"""
+        if self.player_id == 1:
+            return 2
+        elif self.player_id == 2:
+            return 1
+        else:
+            raise Exception("self.player_id not recognizer! player_id can ether be 1 or 2")
 
 
 
