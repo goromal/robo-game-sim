@@ -103,9 +103,22 @@ class ClassicalPlayer:
 
     # TODO
     def bounce_kick(self, state):
-        print("In bounce_kick in clasical player.")
-        successful, puck_vel = self.contact_optimizer.bounce_pass_wall(state.get_puck_pos())
-        print("Success:{}, puck_vel:{}".format(successful, puck_vel))
+        puck_pos = state.get_puck_pos()
+        successful, v_puck_desired = self.contact_optimizer.bounce_pass_wall(puck_pos)
+        if successful:
+            p0 = state.get_player_pos(self.team, self.player_id)
+            v0 = state.get_player_vel(self.team, self.player_id)
+            p0_puck = state.get_puck_pos()
+            v0_puck = state.get_puck_vel()
+            successfull, self.u_traj = self.linear_optimizer.min_time_bounce_kick_traj(p0, v0, p0_puck, v0_puck, v_puck_desired)
+
+            if successful:
+                print("min_time_bounce_kick_traj optimization succeeded.")
+
+            # Store trajectory and reset execution timer
+        self.t_idx = 0
+
+        return successfull
 
 
 

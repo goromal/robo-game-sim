@@ -11,7 +11,9 @@ class ClassicalTeam:
 
         self.curr_play = "idle" # one of ["idle", "offense", "defense"]
 
-    # Main team logic. Takes sim_state and returns vel cmds.
+        self.bounce_kick_planned = False
+
+        # Main team logic. Takes sim_state and returns vel cmds.
     def run(self, state):
 
         ## Add state machine here
@@ -49,15 +51,20 @@ class ClassicalTeam:
             self.player.idle()
 
         elif self.curr_play == "offense":
-            if self.player.is_idle():
-                #self.player.timed_kick(state, 2.0)
-                self.player.simple_kick(state,  3.0)
-            self.goalie.defend(state)
+            # if self.player.is_idle():
+            #     #self.player.timed_kick(state, 2.0)
+            #     self.player.simple_kick(state,  3.0)
+            # self.goalie.defend(state)
 
-            # Test contact optimizer
+            #################################
+            # Jeremy: Test contact optimizer
             if self.team == "A":
                 self.goalie.defend(state)
-                self.player.bounce_kick(state)
+                if not self.bounce_kick_planned:
+                    self.player.bounce_kick(state)
+                    self.bounce_kick_planned = True
+            #################################
+
             else:
                 self.goalie.idle()
                 self.player.idle()

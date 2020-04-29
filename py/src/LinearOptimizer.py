@@ -62,6 +62,42 @@ class LinearOptimizer:
         u_values = u_sol.vector_values(u_sol.get_segment_times())
         return result.is_success(), u_values
 
+    def min_time_bounce_kick_traj(self, p0, v0, p0_puck, v0_puck, v_puck_desired):
+        T = 1
+        x0 = np.concatenate((p0, v0), axis=0)
+        prog = DirectTranscription(self.sys, self.sys.CreateDefaultContext(), int(T/self.params.dt))
+        prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())
+        self.add_final_state_constraint_elastic_collision(prog, p0_puck, v0_puck, v_puck_desired)
+        self.add_input_limits(prog)
+        self.add_arena_limits(prog)
+        prog.AddFinalCost(prog.time())
+
+        result = Solve(prog)
+        u_sol = prog.ReconstructInputTrajectory(result)
+        if not result.is_success():
+            print("Minimum time bounce kick trajectory: optimization failed")
+
+        u_values = u_sol.vector_values(u_sol.get_segment_times())
+        return result.is_success(), u_values
+
+    # TODO: account for moving puck. Right now puck is assumed to be static
+    def add_final_state_constraint_elastic_collision(self, prog, p0_puck, v0_puck, v_puck_desired):
+        m1 = self.params.player_mass
+        m2 = self.params.puck_mass
+        p1 = prog.final_state()[:2] # var: player's final position
+        p2 = p0_puck
+        v1 = prog.final_state()[2:] # var: player's final velocity
+        v2 = v0_puck
+
+        # Final position constraint
+        pf = p0_puck - self.get_normalized_vector(v_puck_desired)*(self.params.puck_radius + self.params.player_radius)
+        prog.AddConstraint(eq(p1, pf))
+
+        # Final velocity constraint
+        # v_puck_after_collision = v2 - 2*m1/(m1+m2)*(v2-v1).dot(p2-p1)/(p2-p1).dot(p2-p1)*(p2-p1) # doesn't work for some reason
+        v_puck_after_collision = v2 - 2*m1/(m1+m2)*(v2-v1).dot(p2-pf)/(p2-pf).dot(p2-pf)*(p2-pf)
+        prog.AddConstraint(eq(v_puck_after_collision, v_puck_desired))
+
     def add_input_limits(self, prog):
         prog.AddConstraintToAllKnotPoints(prog.input()[0] <= self.params.input_limit)
         prog.AddConstraintToAllKnotPoints(prog.input()[0] >= -self.params.input_limit)
@@ -74,4 +110,7 @@ class LinearOptimizer:
         prog.AddConstraintToAllKnotPoints(prog.state()[0] - r >= -self.params.arena_limits_x/2.0)
         prog.AddConstraintToAllKnotPoints(prog.state()[1] + r <= self.params.arena_limits_y/2.0)
         prog.AddConstraintToAllKnotPoints(prog.state()[1] -r >= -self.params.arena_limits_y/2.0)
-    
+
+    def get_normalized_vector(self, v):
+        norm = np.linalg.norm(v)
+        return v / norm if norm > 0 else v

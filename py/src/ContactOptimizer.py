@@ -62,8 +62,6 @@ class ContactOptimizer:
                 v_end = self.next_vel(result.GetSolution(vel_after), result.GetSolution(h[1]))
                 print("v_end:{}".format(v_end))
 
-        plt.pause(1000)
-
         # return whether successful, and the initial puck velocity
         return result.is_success(), result.GetSolution(vel_start)
 

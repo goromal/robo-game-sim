@@ -2,7 +2,7 @@ logfile = 'minimal_game.log';
 make_video = false; % will run slower than real-time if true
 videofile = 'minimal_game.avi';
 % These parameters should match what you ran your single-run sim with:
-T = 20.0;
+T = 5.0;
 dt = 0.05;
 max_score = 4;
 bx0 = 0.0;

@@ -17,11 +17,13 @@ class GameParams:
         self.puck_radius = 0.175
         self.tau_player=0.5
         self.tau_puck = 1.0 # 0.1 was too difficult to bouncing off the wall and move to goal
-        self.input_limit=10.0 
+        self.player_mass = 1.0
+        self.puck_mass = 0.5
+        self.input_limit=10.0
         self.arena_limits_x=10.0 
         self.arena_limits_y=5.0 
         self.winning_score = 4
-        self.x0_ball = np.array([0.,0.,0.,0.])
+        self.x0_ball = np.array([-1, 0.,0.,0.]) # np.array([0.,0.,0.,0.])
         self.log = True
         self.logname = "minimal_game.log"
 params = GameParams()
