@@ -83,13 +83,14 @@ class MiqpOptimizer(LinearOptimizer):
 
     def avoid_other_player(self, prog, state, p_other_player, N):
         """avoid other player, assuming the player remains where it is"""
+        eps = 0.2
         for k in range(N+1):
             distance = state[k][0:2] - p_other_player
-            prog.AddConstraint(distance.dot(distance) >= 2.0*self.params.player_radius)
+            prog.AddConstraint(distance.dot(distance) >= 2.0*self.params.player_radius + eps)
 
     def avoid_puck_quadratic(self, prog, state, N, p_puck):
         """avoid the puck (but allow kick)"""
-        eps = 0.1 # allows kick
+        eps = 0.05 # allows kick
         for k in range(N+1):
             distance = state[k][0:2] - p_puck
             prog.AddConstraint(distance.dot(distance) >= (self.params.player_radius + self.params.puck_radius - eps))
