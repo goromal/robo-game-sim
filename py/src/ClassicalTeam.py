@@ -54,6 +54,14 @@ class ClassicalTeam:
                 self.player.simple_kick(state,  3.0)
             self.goalie.defend(state)
 
+            # Test contact optimizer
+            if self.team == "A":
+                self.goalie.defend(state)
+                self.player.bounce_kick(state)
+            else:
+                self.goalie.idle()
+                self.player.idle()
+
         elif self.curr_play == "defense":
             self.player.defend(state)
             self.goalie.defend(state)

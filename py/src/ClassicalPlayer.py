@@ -1,5 +1,6 @@
 import numpy as np
 from src.LinearOptimizer import LinearOptimizer
+from src.ContactOptimizer import ContactOptimizer
 
 class ClassicalPlayer:
     def __init__(self, params, field, team, player_id, state):
@@ -15,6 +16,7 @@ class ClassicalPlayer:
 
         # Optimizers
         self.linear_optimizer = LinearOptimizer(self.params)
+        self.contact_optimizer = ContactOptimizer(self.params)
 
     # Return latest control action and 
     # percentage of completion of current action.
@@ -99,7 +101,15 @@ class ClassicalPlayer:
 
         return successfull
 
-    # TODO stays in front of the goal trying to intercept the ball
+    # TODO
+    def bounce_kick(self, state):
+        print("In bounce_kick in clasical player.")
+        successful, puck_vel = self.contact_optimizer.bounce_pass_wall(state.get_puck_pos())
+        print("Success:{}, puck_vel:{}".format(successful, puck_vel))
+
+
+
+# TODO stays in front of the goal trying to intercept the ball
     def defend(self, state):
 
         p0 = state.get_player_pos(self.team, self.player_id)

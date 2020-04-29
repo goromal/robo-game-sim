@@ -15,7 +15,8 @@ class GameParams:
         self.dt = 0.05
         self.player_radius = 0.2
         self.puck_radius = 0.175
-        self.tau_player=0.5 
+        self.tau_player=0.5
+        self.tau_puck = 0.1
         self.input_limit=10.0 
         self.arena_limits_x=10.0 
         self.arena_limits_y=5.0 
