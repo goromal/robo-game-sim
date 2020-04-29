@@ -11,7 +11,7 @@ GameSim::GameSim()
     agents_   = {SimState::A1, SimState::A2, SimState::B1, SimState::B2};
     entities_ = {SimState::PK, SimState::A1, SimState::A2, SimState::B1, SimState::B2};
 
-    tau_puck_ = 0.1;
+    tau_puck_ = 1.0; // 0.1 was too difficult to bouncing off the wall and move to goal
     tau_player_ = 0.5;
     player_mass_ = 1.0;
     puck_mass_ = 0.5;
