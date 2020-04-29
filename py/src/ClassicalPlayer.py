@@ -1,5 +1,6 @@
 import numpy as np
 from src.LinearOptimizer import LinearOptimizer
+from src.MiqpOptimizer import MiqpOptimizer
 
 class ClassicalPlayer:
     def __init__(self, params, field, team, player_id, state):
@@ -15,6 +16,7 @@ class ClassicalPlayer:
 
         # Optimizers
         self.linear_optimizer = LinearOptimizer(self.params)
+        self.miqp_optimizer = MiqpOptimizer(self.params)
 
     # Return latest control action and 
     # percentage of completion of current action.
@@ -87,14 +89,14 @@ class ClassicalPlayer:
 
         shoot_direction = self.get_shoot_direction(p_goal, p_puck)
 
-        # Jeremy's timed kick
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
         pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius)
         vf = kick_velocity*shoot_direction
   
         # Store trajectory and reset execution timer
-        successfull, self.u_traj = self.linear_optimizer.min_time_traj(p0, v0, pf, vf)
+        #successfull, self.u_traj = self.linear_optimizer.min_time_traj(p0, v0, pf, vf)
+        successfull, self.u_traj = self.miqp_optimizer.intercepting_with_obs_avoidance(p0, v0, pf, vf, p_puck, 1.0)
         self.t_idx = 0
 
         return successfull
