@@ -40,11 +40,11 @@ class MiqpOptimizer(LinearOptimizer):
         # Avoid other players
         if obstacles != None:
             for obs in obstacles:
-                self.avoid_other_player(prog, state, obs, N)
+                self.avoid_other_player_nl(prog, state, obs, N)
 
         # avoid hitting the puck while generating a kicking trajectory
         if not p_puck.any(None):
-            self.avoid_puck_quadratic(prog, state, N, p_puck)
+            self.avoid_puck_nl(prog, state, N, p_puck)
 
         solver = SnoptSolver()
         result = solver.Solve(prog)
@@ -73,7 +73,7 @@ class MiqpOptimizer(LinearOptimizer):
         self.add_dynamics(prog, N, state, cmd)
 
         ## Input saturation
-        #self.add_input_limits(prog, cmd, N)
+        self.add_input_limits(prog, cmd, N)
 
         # Arena constraints
         self.add_arena_limits(prog, state, N)
@@ -87,13 +87,13 @@ class MiqpOptimizer(LinearOptimizer):
         self.avoid_puck_bigm(prog, x_obs_puck, y_obs_puck, state, N, p_puck)
 
         # Avoid other players
-        #if obstacles != None:
-        #    x_obs_player = list()
-        #    y_obs_player = list()
-        #    for i, obs in enumerate(obstacles):
-        #        x_obs_player.append(prog.NewBinaryVariables(rows=N+1, cols=2)) # obs x_min, obs x_max
-        #        y_obs_player.append(prog.NewBinaryVariables(rows=N+1, cols=2)) # obs y_min, obs y_max
-        #        self.avoid_other_player_bigm(prog, x_obs_player[i], y_obs_player[i], state, obs, N)
+        if obstacles != None:
+            x_obs_player = list()
+            y_obs_player = list()
+            for i, obs in enumerate(obstacles):
+                x_obs_player.append(prog.NewBinaryVariables(rows=N+1, cols=2)) # obs x_min, obs x_max
+                y_obs_player.append(prog.NewBinaryVariables(rows=N+1, cols=2)) # obs y_min, obs y_max
+                self.avoid_other_player_bigm(prog, x_obs_player[i], y_obs_player[i], state, obs, N)
 
         # Solve with simple b&b solver
         for k in range(N):
@@ -124,24 +124,31 @@ class MiqpOptimizer(LinearOptimizer):
             prog.AddLinearConstraint(le(state[k][0:2], arena_lims))
             prog.AddLinearConstraint(ge(state[k][0:2], -arena_lims))
 
-    def avoid_other_player(self, prog, state, p_other_player, N):
+    ############################################################
+    #####    Obstacle avoidance for non-linear formulation  
+    ############################################################
+
+    def avoid_other_player_nl(self, prog, state, p_other_player, N):
         """avoid other player, assuming the player remains where it is, using non-linear constraint"""
-        eps = 0.05
+        eps = 0.0
         for k in range(N+1):
             distance = state[k][0:2] - p_other_player
             prog.AddConstraint(distance.dot(distance) >= (2.0*self.params.player_radius + eps))
 
-    def avoid_other_player_bigm(self, prog, x_obs, y_obs, state, p_other_player, N):
-        """Avoid other player using bigM formulation """
-        obstacle_size = 2.0*self.params.player_radius
-        self.avoid_obstacle_bigm(prog, x_obs, y_obs,  state, N, p_other_player, obstacle_size)
-
-    def avoid_puck_quadratic(self, prog, state, N, p_puck):
+    def avoid_puck_nl(self, prog, state, N, p_puck):
         """avoid the puck (but allow kick)"""
         eps = 0.2 # tunable parameter for tighter/more relaxed tolerance
         for k in range(N+1):
             distance = state[k][0:2] - p_puck
             prog.AddConstraint(distance.dot(distance) >= (self.params.player_radius + self.params.puck_radius - eps))
+    
+    ############################################################
+    #####    Obstacle avoidance for MIQP formulation  
+    ############################################################
+    def avoid_other_player_bigm(self, prog, x_obs, y_obs, state, p_other_player, N):
+        """Avoid other player using bigM formulation """
+        obstacle_size = 2.0*self.params.player_radius
+        self.avoid_obstacle_bigm(prog, x_obs, y_obs,  state, N, p_other_player, obstacle_size)
                 
     def avoid_puck_bigm(self, prog, x_obs, y_obs,  state, N, p_puck):
         """add puck as obstacle using big M notation"""

@@ -49,6 +49,7 @@ class ClassicalPlayer:
     ###########################################################################
     ### All the methods below here generate a trajectory (of length one or more)
     ### Updating the self.u_traj and setting self.t_idx = 0
+    ###########################################################################
 
     # Generate trajectory and stores it in the class state
     # Returns if optimization was successfull or not
@@ -56,14 +57,9 @@ class ClassicalPlayer:
         p_puck = state.get_puck_pos()
         p_goal = self.get_adversary_goal_pos()
 
-        shoot_direction = self.get_shoot_direction(p_goal, p_puck)
-
-        # Jeremy's timed kick
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
-        eps = 0.01
-        pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius + eps)
-        vf = kick_velocity*shoot_direction
+        pf, vf = self.get_final_state_for_kick(p_puck, p_goal, kick_velocity)
         T = time_to_kick
   
         # Store trajectory and reset execution timer
@@ -71,22 +67,20 @@ class ClassicalPlayer:
 
 
     def timed_kick_avoiding_obs(self, state, kick_velocity, time_to_kick):
+        """finite-time kick while avoiding other players and puck"""
         p_puck = state.get_puck_pos()
         p_goal = self.get_adversary_goal_pos()
 
-        shoot_direction = self.get_shoot_direction(p_goal, p_puck)
-
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
-        pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius)
-        vf = kick_velocity*shoot_direction
+        pf, vf = self.get_final_state_for_kick(p_puck, p_goal, kick_velocity)
         T = time_to_kick
 
         # define obstacles to avoid:
         other_players = self.get_pos_of_other_players(state)
 
-        #successfull, self.u_traj = self.miqp_optimizer.intercepting_with_obs_avoidance(p0, v0, pf, vf, time_to_kick, other_players, p_puck)
-        successfull, self.u_traj = self.miqp_optimizer.intercepting_with_obs_avoidance_bb(p0, v0, pf, vf, time_to_kick, other_players, p_puck)
+        successfull, self.u_traj = self.miqp_optimizer.intercepting_with_obs_avoidance(p0, v0, pf, vf, time_to_kick, other_players, p_puck)
+        #successfull, self.u_traj = self.miqp_optimizer.intercepting_with_obs_avoidance_bb(p0, v0, pf, vf, time_to_kick, other_players, p_puck)
         self.t_idx = 0
 
         return successfull
@@ -108,13 +102,10 @@ class ClassicalPlayer:
         p_puck = state.get_puck_pos()
         p_goal = self.get_adversary_goal_pos()
 
-        shoot_direction = self.get_shoot_direction(p_goal, p_puck)
-
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
-        pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius)
-        vf = kick_velocity*shoot_direction
-  
+        pf, vf = self.get_final_state_for_kick(p_puck, p_goal, kick_velocity)
+
         # Store trajectory and reset execution timer
         successfull, self.u_traj = self.linear_optimizer.min_time_traj(p0, v0, pf, vf)
         self.t_idx = 0
@@ -127,7 +118,8 @@ class ClassicalPlayer:
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
 
-        pf_y = state.get_puck_pos()[1]
+        #pf_y = state.get_puck_pos()[1]
+        pf_y = state.get_player_pos(self.get_adversary_team(), 1)[1]
         defense_line = 0.3
         pf_x = 0.0
         if self.field > 0:
@@ -147,6 +139,12 @@ class ClassicalPlayer:
             return np.array([-self.params.arena_limits_x/2.0, 0.0])
         else :
             return np.array([self.params.arena_limits_x/2.0, 0.0])
+
+    def get_final_state_for_kick(self, p_goal, p_puck, kick_velocity):
+        shoot_direction = self.get_shoot_direction(p_goal, p_puck)
+        pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius)
+        vf = kick_velocity*shoot_direction
+        return pf, vf
 
     def get_shoot_direction(self, p_goal, p_puck):
         """Returns direction to kick to reach goal"""
