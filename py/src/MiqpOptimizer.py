@@ -11,7 +11,7 @@ class MiqpOptimizer(LinearOptimizer):
         super(MiqpOptimizer, self).__init__(params)
     
     def intercepting_with_obs_avoidance(self, p0, v0, pf, vf, T, obstacles=None, p_puck=None):
-        """Minimum time trajectory that avoids obs"""
+        """Intercepting trajectory that avoids obs"""
         x0 = np.array(np.concatenate((p0, v0), axis=0))
         xf = np.concatenate((pf, vf), axis=0)
         prog = MathematicalProgram()
@@ -33,10 +33,10 @@ class MiqpOptimizer(LinearOptimizer):
         # Arena constraints
         self.add_arena_limits(prog, state, N)
 
-        # Solve with simple b&b solver
         for k in range(N):
             prog.AddQuadraticCost(cmd[k].flatten().dot(cmd[k]))
 
+        # Add non-linear constraints - will solve with SNOPT
         # Avoid other players
         if obstacles != None:
             for obs in obstacles:
@@ -46,23 +46,67 @@ class MiqpOptimizer(LinearOptimizer):
         if not p_puck.any(None):
             self.avoid_puck_quadratic(prog, state, N, p_puck)
 
-        # MILP formulation with B&B solver
-        #x_obs = prog.NewBinaryVariables(rows=2, cols=1) # obs x_min, obs x_max
-        #y_obs = prog.NewBinaryVariables(rows=2, cols=1) # obs y_min, obs y_max
-        #self.add_puck_as_obstacle(prog, x_obs, y_obs, state, N, obs, vf)
-
-        #bb = branch_and_bound.MixedIntegerBranchAndBound(prog, OsqpSolver().solver_id())
-        #result = bb.Solve()
-        #if result != result.kSolutionFound:
-        #    raise ValueError('Infeasible optimization problem.')
-        #u_values = np.array([bb.GetSolution(u) for u in cmd]).T
-        # solution_found = result.kSolutionFound
-
         solver = SnoptSolver()
         result = solver.Solve(prog)
         solution_found = result.is_success()
+        if not solution_found:
+            print("Solution not found for intercepting_with_obs_avoidance")
+
         u_values = result.GetSolution(cmd)
         return solution_found, u_values.T
+
+    def intercepting_with_obs_avoidance_bb(self, p0, v0, pf, vf, T, obstacles=None, p_puck=None):
+        """kick while avoiding obstacles using big M formulation and branch and bound"""
+        x0 = np.array(np.concatenate((p0, v0), axis=0))
+        xf = np.concatenate((pf, vf), axis=0)
+        prog = MathematicalProgram()
+
+        # state and control inputs
+        N = int(T/self.params.dt) # number of time steps
+        state = prog.NewContinuousVariables(N+1, 4, 'state')
+        cmd = prog.NewContinuousVariables(N, 2, 'input')
+
+        # Initial and final state
+        prog.AddLinearConstraint(eq(state[0], x0))
+        prog.AddLinearConstraint(eq(state[-1], xf))
+        
+        self.add_dynamics(prog, N, state, cmd)
+
+        ## Input saturation
+        self.add_input_limits(prog, cmd, N)
+
+        # Arena constraints
+        self.add_arena_limits(prog, state, N)
+
+        # Add Mixed-integer constraints - will solve with BB
+
+        # avoid hitting the puck while generating a kicking trajectory
+        # MILP formulation with B&B solver
+        if not p_puck.any(None):
+            x_obs_puck = prog.NewBinaryVariables(rows=2, cols=1) # obs x_min, obs x_max
+            y_obs_puck = prog.NewBinaryVariables(rows=2, cols=1) # obs y_min, obs y_max
+            self.avoid_puck_bigm(prog, x_obs_puck, y_obs_puck, state, N, p_puck)
+
+        # Avoid other players
+        if obstacles != None:
+            x_obs_player = list()
+            y_obs_player = list()
+            for i, obs in enumerate(obstacles):
+                x_obs_player.append(prog.NewBinaryVariables(rows=2, cols=1)) # obs x_min, obs x_max
+                y_obs_player.append(prog.NewBinaryVariables(rows=2, cols=1)) # obs y_min, obs y_max
+                self.avoid_other_player_bigm(prog, x_obs_player[i], y_obs_player[i], state, obs, N)
+
+        # Solve with simple b&b solver
+        for k in range(N):
+            prog.AddQuadraticCost(cmd[k].flatten().dot(cmd[k]))
+
+        bb = branch_and_bound.MixedIntegerBranchAndBound(prog, OsqpSolver().solver_id())
+        result = bb.Solve()
+        if result != result.kSolutionFound:
+            raise ValueError('Infeasible optimization problem.')
+        u_values = np.array([bb.GetSolution(u) for u in cmd]).T
+        solution_found = result.kSolutionFound
+        return solution_found, u_values
 
     def add_dynamics(self, prog, N, state, acc):
         """Add model dynamics to the program as equality constraints for N steps"""
@@ -82,61 +126,40 @@ class MiqpOptimizer(LinearOptimizer):
             prog.AddLinearConstraint(ge(state[k][0:2], -arena_lims))
 
     def avoid_other_player(self, prog, state, p_other_player, N):
-        """avoid other player, assuming the player remains where it is"""
-        eps = 0.2
+        """avoid other player, assuming the player remains where it is, using non-linear constraint"""
+        eps = 0.05
         for k in range(N+1):
             distance = state[k][0:2] - p_other_player
-            prog.AddConstraint(distance.dot(distance) >= 2.0*self.params.player_radius + eps)
+            prog.AddConstraint(distance.dot(distance) >= (2.0*self.params.player_radius + eps))
+
+    def avoid_other_player_bigm(self, prog, x_obs, y_obs, state, p_other_player, N):
+        """Avoid other player using bigM formulation """
+        obstacle_size = 2.0*self.params.player_radius
+        self.avoid_obstacle_bigm(prog, x_obs, y_obs,  state, N, p_other_player, obstacle_size)
 
     def avoid_puck_quadratic(self, prog, state, N, p_puck):
         """avoid the puck (but allow kick)"""
-        eps = 0.05 # allows kick
+        eps = 0.2 # tunable parameter for tighter/more relaxed tolerance
         for k in range(N+1):
             distance = state[k][0:2] - p_puck
             prog.AddConstraint(distance.dot(distance) >= (self.params.player_radius + self.params.puck_radius - eps))
                 
-    def add_puck_as_obstacle(self, prog, x_obs, y_obs,  state, N, p_puck, v_kick):
+    def avoid_puck_bigm(self, prog, x_obs, y_obs,  state, N, p_puck):
         """add puck as obstacle using big M notation"""
+        epsilon = 0.1 # Reduce obstacle size to allow kicking of the puck
+        obstacle_size = self.params.player_radius + self.params.puck_radius - epsilon
+        self.avoid_obstacle_bigm(prog, x_obs, y_obs,  state, N, p_puck, obstacle_size)
 
-        # Add constraints with big-M notation
-        #prog.AddLinearConstraint(x_obs[0][0] + x_obs[1][0] + y_obs[0][0] + y_obs[1][0] <= 1)
-        #pr_r = self.params.player_radius
-        #pk_r = self.params.puck_radius
-        #Mx = self.params.arena_limits_x
-        #My = self.params.arena_limits_y
-            
-        #eps = 0.01
-        #for k in range(N+1):
-        #    if v_kick[0] > 0.0:
-        #        if abs(v_kick[1]) > abs(v_kick[0]):
-        #            # TOP
-        #        else:
-        #            # RIGHT
-        #    else:
-        #        if abs(v_kick[1]) > abs(v_kick[0]):
-        #            # 
-        #        else:
-        #            # RIGHT
-        #for k in range(N+1):
-        #    if v_kick[0] > 0.0: 
-        #        # make wall on the right of the puck
-        #        prog.AddConstraint(state[k][0] - pr_r >= p_puck[0] + pk_r - Mx*x_obs[0][0])
-        #        prog.AddConstraint(state[k][0] + pr_r <= p_puck[0] + pk_r - eps + Mx*x_obs[1][0])
-        #    else:
-        #        # make wall on the left of the puck
-        #        prog.AddConstraint(state[k][0] - pr_r >= p_puck[0] - pk_r + eps - Mx*x_obs[0][0])
-        #        prog.AddConstraint(state[k][0] + pr_r <= p_puck[0] - pk_r + Mx*x_obs[1][0])
-
-        #    if v_kick[1] > 0.0:
-        #        # make wall above the puck
-        #        prog.AddConstraint(state[k][1] - pr_r >= p_puck[1] + pk_r - My*y_obs[0][0])
-        #        prog.AddConstraint(state[k][1] + pr_r <= p_puck[1] + pk_r - eps + My*y_obs[1][0])
-        #    else:
-        #        # make wall below the puck
-        #        prog.AddConstraint(state[k][1] - pr_r >= p_puck[1] - pk_r + eps - My*y_obs[0][0])
-        #        prog.AddConstraint(state[k][1] + pr_r <= p_puck[1] - pk_r + My*y_obs[1][0])
-
-
+    def avoid_obstacle_bigm(self, prog, x_obs, y_obs,  state, N, p_obs, obs_size):
+        """Add constraint to avoid generic obstacle using the big-M notation"""
+        prog.AddLinearConstraint(x_obs[0][0] + x_obs[1][0] + y_obs[0][0] + y_obs[1][0] >= 3)
+        Mx = 2.0*self.params.arena_limits_x
+        My = 2.0*self.params.arena_limits_y
+        for k in range(N+1):
+            prog.AddConstraint(state[k][0] >= p_obs[0] + obs_size - Mx*x_obs[0][0])
+            prog.AddConstraint(state[k][0] <= p_obs[0] - obs_size + Mx*x_obs[1][0])
+            prog.AddConstraint(state[k][1] >= p_obs[1] + obs_size - My*y_obs[0][0])
+            prog.AddConstraint(state[k][1] <= p_obs[1] - obs_size + My*y_obs[1][0])
 
 
 
