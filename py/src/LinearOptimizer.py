@@ -14,7 +14,7 @@ class LinearOptimizer:
         self.C = np.eye(4)
         self.D = np.zeros((4,2))
         self.sys = LinearSystem(self.A, self.B, self.C, self.D, self.params.dt)
-        self.continuous_sys = LinearSystem(self.A_c, self.B_c, self.C, self.D)
+        self.sys_c = LinearSystem(self.A_c, self.B_c, self.C, self.D)
  
     # given initial state, final state, final time (Jeremy's)
     def intercepting_traj(self, p0, v0, pf, vf, T):
@@ -68,8 +68,8 @@ class LinearOptimizer:
         return result.is_success(), u_values
 
     def min_time_traj(self, p0, v0, pf, vf, xlim=None, ylim=None):
-        return self.min_time_traj_transcription(p0, v0, pf, vf)
-        #return self.min_time_traj_dir_col(p0, v0, pf, vf)
+        #return self.min_time_traj_transcription(p0, v0, pf, vf)
+        return self.min_time_traj_dir_col(p0, v0, pf, vf)
 
     def min_time_traj_dir_col(self, p0, v0, pf, vf, xlim=None, ylim=None):
         """generate minimum time trajectory while avoiding obs"""
@@ -78,7 +78,7 @@ class LinearOptimizer:
         N = 21
         x0 = np.concatenate((p0, v0), axis=0)
         xf = np.concatenate((pf, vf), axis=0)
-        prog = DirectCollocation(self.continuous_sys, self.continuous_sys.CreateDefaultContext(), N, minimum_timestep=0.05, maximum_timestep=0.2)
+        prog = DirectCollocation(self.sys_c, self.sys_c.CreateDefaultContext(), N, minimum_timestep=0.05, maximum_timestep=0.2)
         prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())     # initial states
         prog.AddBoundingBoxConstraint(xf, xf, prog.final_state())
         
@@ -91,8 +91,8 @@ class LinearOptimizer:
         #u = prog.input()
         #prog.AddRunningCost(R * u[0]**2)
 
-        initial_x_trajectory = PiecewisePolynomial.FirstOrderHold([0., 4.], np.column_stack((x0, xf)))  # yapf: disable
-        prog.SetInitialTrajectory(PiecewisePolynomial(), initial_x_trajectory)
+        #initial_x_trajectory = PiecewisePolynomial.FirstOrderHold([0., 4.], np.column_stack((x0, xf)))  # yapf: disable
+        #prog.SetInitialTrajectory(PiecewisePolynomial(), initial_x_trajectory)
 
         prog.AddFinalCost(prog.time())
 
@@ -104,9 +104,30 @@ class LinearOptimizer:
         T = u_trajectory.end_time() - u_trajectory.start_time()
         N_sol = int(T/self.params.dt)
         times = np.linspace(u_trajectory.start_time(), u_trajectory.end_time(), 100)
+        print("u_trajectory.value", u_trajectory.value)
         u_lookup = np.vectorize(u_trajectory.value)
         u_values = u_lookup(times)
-        #return result.is_success(), u_values
+
+        ### ERROR ##
+        #TypeError: only size-1 arrays can be converted to Python scalars
+        #The above exception was the direct cause of the following exception:
+        #Traceback (most recent call last):
+        #File "../py/run_sim.py", line 44, in <module>
+        #velB1, velB2 = away_team.run(sim_state)
+        #File "/home/andrea/libs/robo-game-sim/py/src/ClassicalTeam.py", line 31, in run
+        #self.goalie.defend(state)
+        #File "/home/andrea/libs/robo-game-sim/py/src/ClassicalPlayer.py", line 130, in defend
+        #successfull, self.u_traj = self.linear_optimizer.min_time_traj(p0, v0, np.array([pf_x, pf_y]), np.zeros(2),  None)
+        #File "/home/andrea/libs/robo-game-sim/py/src/LinearOptimizer.py", line 72, in min_time_traj
+        #return self.min_time_traj_dir_col(p0, v0, pf, vf)
+        #File "/home/andrea/libs/robo-game-sim/py/src/LinearOptimizer.py", line 109, in min_time_traj_dir_col
+        #u_values = u_lookup(times)
+        #File "/home/andrea/.local/lib/python3.6/site-packages/numpy/lib/function_base.py", line 2091, in __call__
+        #return self._vectorize_call(func=func, args=vargs)
+        #File "/home/andrea/.local/lib/python3.6/site-packages/numpy/lib/function_base.py", line 2170, in _vectorize_call
+        #res = array(outputs, copy=False, subok=True, dtype=otypes[0])
+        #ValueError: setting an array element with a sequence.
+        return result.is_success(), u_values
 
     def add_input_limits(self, prog):
         prog.AddConstraintToAllKnotPoints(prog.input()[0] <= self.params.input_limit)
