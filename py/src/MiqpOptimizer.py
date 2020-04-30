@@ -62,7 +62,7 @@ class MiqpOptimizer(LinearOptimizer):
         prog = MathematicalProgram()
 
         # state and control inputs
-        N = int(T/self.params.dt) # number of time steps
+        N = int(T/self.params.dt) # number of command steps
         state = prog.NewContinuousVariables(N+1, 4, 'state')
         cmd = prog.NewContinuousVariables(N, 2, 'input')
 
@@ -73,7 +73,7 @@ class MiqpOptimizer(LinearOptimizer):
         self.add_dynamics(prog, N, state, cmd)
 
         ## Input saturation
-        self.add_input_limits(prog, cmd, N)
+        #self.add_input_limits(prog, cmd, N)
 
         # Arena constraints
         self.add_arena_limits(prog, state, N)
@@ -82,19 +82,18 @@ class MiqpOptimizer(LinearOptimizer):
 
         # avoid hitting the puck while generating a kicking trajectory
         # MILP formulation with B&B solver
-        if not p_puck.any(None):
-            x_obs_puck = prog.NewBinaryVariables(rows=2, cols=1) # obs x_min, obs x_max
-            y_obs_puck = prog.NewBinaryVariables(rows=2, cols=1) # obs y_min, obs y_max
-            self.avoid_puck_bigm(prog, x_obs_puck, y_obs_puck, state, N, p_puck)
+        x_obs_puck = prog.NewBinaryVariables(rows=N+1, cols=2) # obs x_min, obs x_max
+        y_obs_puck = prog.NewBinaryVariables(rows=N+1, cols=2) # obs y_min, obs y_max
+        self.avoid_puck_bigm(prog, x_obs_puck, y_obs_puck, state, N, p_puck)
 
         # Avoid other players
-        if obstacles != None:
-            x_obs_player = list()
-            y_obs_player = list()
-            for i, obs in enumerate(obstacles):
-                x_obs_player.append(prog.NewBinaryVariables(rows=2, cols=1)) # obs x_min, obs x_max
-                y_obs_player.append(prog.NewBinaryVariables(rows=2, cols=1)) # obs y_min, obs y_max
-                self.avoid_other_player_bigm(prog, x_obs_player[i], y_obs_player[i], state, obs, N)
+        #if obstacles != None:
+        #    x_obs_player = list()
+        #    y_obs_player = list()
+        #    for i, obs in enumerate(obstacles):
+        #        x_obs_player.append(prog.NewBinaryVariables(rows=N+1, cols=2)) # obs x_min, obs x_max
+        #        y_obs_player.append(prog.NewBinaryVariables(rows=N+1, cols=2)) # obs y_min, obs y_max
+        #        self.avoid_other_player_bigm(prog, x_obs_player[i], y_obs_player[i], state, obs, N)
 
         # Solve with simple b&b solver
         for k in range(N):
@@ -146,20 +145,20 @@ class MiqpOptimizer(LinearOptimizer):
                 
     def avoid_puck_bigm(self, prog, x_obs, y_obs,  state, N, p_puck):
         """add puck as obstacle using big M notation"""
-        epsilon = 0.1 # Reduce obstacle size to allow kicking of the puck
+        epsilon = 0.2 # Reduce obstacle size to allow kicking of the puck
         obstacle_size = self.params.player_radius + self.params.puck_radius - epsilon
         self.avoid_obstacle_bigm(prog, x_obs, y_obs,  state, N, p_puck, obstacle_size)
 
     def avoid_obstacle_bigm(self, prog, x_obs, y_obs,  state, N, p_obs, obs_size):
         """Add constraint to avoid generic obstacle using the big-M notation"""
-        prog.AddLinearConstraint(x_obs[0][0] + x_obs[1][0] + y_obs[0][0] + y_obs[1][0] >= 3)
         Mx = 2.0*self.params.arena_limits_x
         My = 2.0*self.params.arena_limits_y
         for k in range(N+1):
-            prog.AddConstraint(state[k][0] >= p_obs[0] + obs_size - Mx*x_obs[0][0])
-            prog.AddConstraint(state[k][0] <= p_obs[0] - obs_size + Mx*x_obs[1][0])
-            prog.AddConstraint(state[k][1] >= p_obs[1] + obs_size - My*y_obs[0][0])
-            prog.AddConstraint(state[k][1] <= p_obs[1] - obs_size + My*y_obs[1][0])
+            prog.AddConstraint(x_obs[k][0] + x_obs[k][1] + y_obs[k][0] + y_obs[k][1] == 1)
+            prog.AddConstraint(state[k][0] >= p_obs[0] + obs_size - Mx*(1 - x_obs[k][0]))
+            prog.AddConstraint(state[k][0] <= p_obs[0] - obs_size + Mx*(1 - x_obs[k][1]))
+            prog.AddConstraint(state[k][1] >= p_obs[1] + obs_size - My*(1 - y_obs[k][0]))
+            prog.AddConstraint(state[k][1] <= p_obs[1] - obs_size + My*(1 - y_obs[k][1]))
 
 
 

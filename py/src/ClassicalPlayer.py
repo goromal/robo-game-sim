@@ -61,7 +61,8 @@ class ClassicalPlayer:
         # Jeremy's timed kick
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
-        pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius)
+        eps = 0.01
+        pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius + eps)
         vf = kick_velocity*shoot_direction
         T = time_to_kick
   
@@ -84,7 +85,8 @@ class ClassicalPlayer:
         # define obstacles to avoid:
         other_players = self.get_pos_of_other_players(state)
 
-        successfull, self.u_traj = self.miqp_optimizer.intercepting_with_obs_avoidance(p0, v0, pf, vf, time_to_kick, other_players, p_puck)
+        #successfull, self.u_traj = self.miqp_optimizer.intercepting_with_obs_avoidance(p0, v0, pf, vf, time_to_kick, other_players, p_puck)
+        successfull, self.u_traj = self.miqp_optimizer.intercepting_with_obs_avoidance_bb(p0, v0, pf, vf, time_to_kick, other_players, p_puck)
         self.t_idx = 0
 
         return successfull
