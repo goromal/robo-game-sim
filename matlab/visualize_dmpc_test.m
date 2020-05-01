@@ -1,8 +1,8 @@
 logfile = '../py/dmpc_game.log';
 make_video = true; % will run slower than real-time if true
-videofile = 'minimal_game_2v2.avi';
+videofile = 'minimal_game_2v2_100s.avi';
 % These parameters should match what you ran your single-run sim with:
-T = 60.0;
+T = 100.0;
 dt = 0.05;
 max_score = 4;
 bx0 = 0.0;
