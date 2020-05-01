@@ -26,7 +26,8 @@ private:
     unsigned int checkWallCollisions();
     void checkAgentCollisions();
     void collideElastically(const double &m1, const double &m2, const double &r1, const double &r2,
-                            Ref<Vector4d> x1, Ref<Vector4d> x2);
+                            Ref<Vector4d> x1, Ref<Vector4d> x2, const bool &penalize,
+                            const int &ID1, const int &ID2);
     double mass(const unsigned int &id);
     double radius(const unsigned int &id);
 
