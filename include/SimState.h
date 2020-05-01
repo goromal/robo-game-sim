@@ -54,6 +54,18 @@ struct SimState
         arr.setZero();
     }
 
+    double getTeamAScore()
+    {
+        double penalty = 0.005 * (static_cast<double>(A1_collisions) + static_cast<double>(A2_collisions));
+        return static_cast<double>(TeamAScore) - penalty;
+    }
+
+    double getTeamBScore()
+    {
+        double penalty = 0.005 * (static_cast<double>(B1_collisions) + static_cast<double>(B2_collisions));
+        return static_cast<double>(TeamBScore) - penalty;
+    }
+
     Eigen::Matrix<double, SIZE, 1> vector()
     {
         return arr;
