@@ -8,7 +8,7 @@ sim = GameSim()
 # Sim parameters
 class GameParams:
     def __init__(self):
-        self.T = 60.0 # seconds, max total time
+        self.T = 100.0 # seconds, max total time
         self.dt = 0.05
         self.player_radius = 0.2
         self.puck_radius = 0.175
@@ -18,6 +18,7 @@ class GameParams:
         self.arena_limits_y=5.0
         self.winning_score = 4
         self.x0_ball = np.array([0.,0.,0.,0.])
+        self.w_stdev = 0.0 # standard deviation of zero-mean gaussian noise on dynamics inputs
         self.log = True
         self.logname = "dmpc_game.log"
 
@@ -26,7 +27,7 @@ log = params.log
 logname = params.logname
 
 # Reset sim (this can be done an arbitrary number of times)
-sim.reset(params.dt, params.winning_score, params.x0_ball, params.log, params.logname)
+sim.reset(params.dt, params.winning_score, params.x0_ball, params.w_stdev, params.log, params.logname)
 sim_state = SimState(sim.run(np.zeros(2), np.zeros(2), np.zeros(2), np.zeros(2)))
 
 # Create two teams
