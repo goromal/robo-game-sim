@@ -1,6 +1,6 @@
 #include "GameSim.h"
 
-GameSim::GameSim()
+GameSim::GameSim() : reng_(), w_stdev_(0.0), w_dist_(0.0, 1.0)
 {
     arena_X_ = 10.0;
     arena_Y_ = 5.0;
@@ -21,10 +21,11 @@ GameSim::~GameSim() {}
 
 Eigen::Matrix<double, SimState::SIZE, 1> GameSim::reset(const double &dt=0.05,
                     const int &winning_score=3, const Eigen::Vector4d &x0_ball=Eigen::Vector4d::Zero(),
-                    const bool &log=false, const std::string &logname="~/gamelog.log")
+                    const double &noise=0.0, const bool &log=false, const std::string &logname="~/gamelog.log")
 {
     dt_ = dt;
     t_ = 0.0;
+    w_stdev_ = noise;
     winning_score_ = winning_score;
     state_.TeamAScore = 0;
     state_.TeamBScore = 0;
@@ -49,15 +50,15 @@ Eigen::Matrix<double, SimState::SIZE, 1> GameSim::reset(const double &dt=0.05,
 
 bool GameSim::undecided()
 {
-    return (state_.TeamAScore < winning_score_) && (state_.TeamBScore < winning_score_);
+    return (state_.getTeamAScore() < winning_score_) && (state_.getTeamBScore() < winning_score_);
 }
 
 void GameSim::f_player(Ref<Vector4d> xdot, const Ref<Vector4d> &x, const Vector2d &u)
 {
     xdot(PX,0) = x(VX,0);
     xdot(PY,0) = x(VY,0);
-    xdot(VX,0) = (u(0,0) - x(VX,0)) / tau_player_;
-    xdot(VY,0) = (u(1,0) - x(VY,0)) / tau_player_;
+    xdot(VX,0) = (u(0,0) - x(VX,0)) / tau_player_ + w_stdev_ * w_dist_(reng_);
+    xdot(VY,0) = (u(1,0) - x(VY,0)) / tau_player_ + w_stdev_ * w_dist_(reng_);
 }
 
 void GameSim::RK4_player(Ref<Vector4d> x, const Vector2d &u, const double &dt)
@@ -154,7 +155,7 @@ void GameSim::updateSim(const Eigen::Vector2d &vel_A1, const Eigen::Vector2d &ve
     if (log_)
     {
         // 13 double fields
-        logger_.log(t_, static_cast<double>(state_.TeamAScore), static_cast<double>(state_.TeamBScore));
+        logger_.log(t_, state_.getTeamAScore(), state_.getTeamBScore());
         logger_.logVectors(state_.x_ball.block<2,1>(PX,0), state_.x_A1.block<2,1>(PX,0),
                            state_.x_A2.block<2,1>(PX,0),   state_.x_B1.block<2,1>(PX,0),
                            state_.x_B2.block<2,1>(PX,0));
@@ -262,8 +263,8 @@ void GameSim::collideElastically(const double &m1, const double &m2, const doubl
     double np12 = p12.norm() - (r1 + r2); // negative if there's overlap
     if (np12 < 0.0)
     {
-        x1.block<2,1>(PX,0) += np12 / 2.0 * p12;
-        x2.block<2,1>(PX,0) -= np12 / 2.0 * p12;
+        x1.block<2,1>(PX,0) += np12 * 2.0 * p12; /// 2.0 * p12;
+        x2.block<2,1>(PX,0) -= np12 * 2.0 * p12; /// 2.0 * p12;
     }
 
     // https://en.wikipedia.org/wiki/Elastic_collision
