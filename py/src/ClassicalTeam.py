@@ -16,23 +16,23 @@ class ClassicalTeam:
     def run(self, state):
 
         ### Add state machine here
-        #next_play = self.evaluateGame(state)
+        next_play = self.evaluateGame(state)
 
-        #if next_play != self.curr_play:
-        #    self.clean_up()
-        #    self.curr_play = next_play
-        #    self.set_up()
-        #    self.execute(state)
-        #else:
-        #    self.execute(state)
+        if next_play != self.curr_play:
+            self.clean_up()
+            self.curr_play = next_play
+            self.set_up()
+            self.execute(state)
+        else:
+            self.execute(state)
 
         ### # Call state transitions for goalie
         #if self.goalie.is_idle():
-        self.goalie.defend(state)
+        #self.goalie.defend(state)
 
         ## # Plan an open loop kick if not doing it already!
         #if self.player.is_idle():
-        self.player.simple_kick_avoiding_obs(state, 5.0)
+        #self.player.simple_kick_avoiding_obs(state, 5.0)
         
         # Do not change below here
         vel_goalie, _ = self.goalie.get_control()
