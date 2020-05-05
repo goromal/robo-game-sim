@@ -1,31 +1,47 @@
 
 import numpy as np
-from src.CentralizedMPC import CentralizedMPC
+from src.CentralizedMPC import CentralizedMPC, LinearSystem
 
 class MpcParams():
-    self.todo = "todo"
+    def __init__(self, params):
+        self.params = params
+        self.A_player = np.eye(4) + self.params.dt*np.array([[0, 0, 1, 0], [0, 0, 0, 1], [0, 0, -1.0/self.params.tau_player, 0], [0, 0, 0, -1.0/self.params.tau_player]])
+        self.B_player = self.params.dt*np.array([[0, 0], [0, 0], [1.0/self.params.tau_player, 0], [0, 1.0/self.params.tau_player]])
+        self.C_player = np.eye(4)
+        self.D_player = np.zeros((4,2))
+        self.sys_player = LinearSystem(self.A_player, self.B_player, self.C_player, self.D_player, self.params.dt)
+
+        self.A_puck = np.eye(4) + self.params.dt*np.array([[0, 0, 1, 0], [0, 0, 0, 1], [0, 0, -1.0/self.params.tau_puck, 0], [0, 0, 0, -1.0/self.params.tau_puck]])
+        self.B_puck = np.zeros((4, 2))
+        self.C_puck = np.eye(4)
+        self.D_puck = np.zeros((4,2))
+        self.sys_puck = LinearSystem(self.A_puck, self.B_puck, self.C_puck, self.D_puck, self.params.dt)
+
+        self.Q_puck = np.eye(4) # TODO: penalize velocity differently
+
 
 class CentralizedPlayers():
 
-    def __init__(self, sim_params, strategy_params, field, player_id):
+    def __init__(self, params, field, team):
         # player parameters
-        self.sim_params = sim_params
-        self.player_id = player_id # 1 or 2; 1 plays more offense, 2 plays more defense
+        self.sim_params = params
+        self.mpc_params = MpcParams(params)
         self.field = field
-        self.player_1 = 1
-        self.player_2 = 2
+        self.team = team
+        self.player_1_id = 1 # Contains and controls both the players
+        self.player_2_id = 2
 
         # controller
-        self.controller_params = MpcParams()
-        self.controller = CentralizedMPC(sim_params, controller_params)
+        #self.controller_params = MpcParams()
+        self.controller = CentralizedMPC(self.sim_params, self.mpc_params)
 
     def attack(self, state):
         """compute control action for player1 and 2 to send the puck in the goal"""
-        x_p1 = state.get_player_state(self.player_1)
-        x_p2 = state.get_player_state(self.player_2)
+        x_p1 = state.get_player_state(self.team, self.player_1_id)
+        x_p2 = state.get_player_state(self.team, self.player_2_id)
         x_puck = state.get_puck_state()
-        x_goal = get_adversary_goal_pos()
-        obstacles = get_pos_of_other_players(state)
+        x_goal = self.get_adversary_goal_pos()
+        obstacles = self.get_pos_of_other_players(state)
         return self.controller.compute_control(x_p1, x_p2, x_puck, x_goal, obstacles)
 
     # Where the ball should be kicked
@@ -33,9 +49,9 @@ class CentralizedPlayers():
     def get_adversary_goal_pos(self):
         """returns the poosition of the goal of the adversary team"""
         if self.field > 0:
-            return np.array([-self.params.arena_limits_x/2.0, 0.0])
+            return np.array([-self.sim_params.arena_limits_x/2.0, 0.0])
         else :
-            return np.array([self.params.arena_limits_x/2.0, 0.0])
+            return np.array([self.sim_params.arena_limits_x/2.0, 0.0])
 
     def get_pos_of_other_players(self, state):
         positions = list()

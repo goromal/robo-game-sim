@@ -15,11 +15,14 @@ class GameParams:
         self.dt = 0.05
         self.player_radius = 0.2
         self.puck_radius = 0.175
-        self.tau_player=0.5 
+        self.tau_player= 0.5 
+        self.tau_puck = 0.1
         self.input_limit=10.0 
         self.arena_limits_x=10.0 
         self.arena_limits_y=5.0 
         self.winning_score = 4
+        self.puck_mass = 0.5
+        self.player_mass = 1.0
         self.x0_ball = np.array([0.,0.,0.,0.])
         self.log = True
         self.logname = "minimal_game.log"
