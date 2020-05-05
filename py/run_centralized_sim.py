@@ -44,17 +44,17 @@ while t < params.T:
 
     # Compute velocity for each team
     velA1, velA2 = home_team.run(sim_state)
-    velB1, velB2 = away_team.run(sim_state)
+    #velB1, velB2 = away_team.run(sim_state)
     
     # commanded velocities for team A and team B
     #velA1 = np.array([cos(t),sin(t)])
     #velA2 = np.array([cos(t),sin(t)])
-    #velB1 = np.array([cos(t),sin(t)])
-    #velB2 = np.array([cos(t),sin(t)])
+    velB1 = np.array([cos(t),sin(t)])
+    velB2 = np.array([cos(t),sin(t)])
 
     # run the simulator, returns vector with all sim info
     sim_state = SimState(sim.run(velA1, velA2, velB1, velB2))
-    print(sim_state.transpose())
+    #print(sim_state.transpose())
 
     t += params.dt
 

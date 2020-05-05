@@ -13,4 +13,5 @@ class CentralizedTeam:
     # Main team logic. Takes sim_state and returns vel cmds.
     def run(self, state):
         vel_player1, vel_player2 = self.players.attack(state)
+        print("commanding:", vel_player1, vel_player2)
         return vel_player1, vel_player2

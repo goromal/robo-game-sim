@@ -16,21 +16,24 @@ class CentralizedMPC():
         N = 20 # length of receding horizon
         prog = MathematicalProgram()
 
+        # State and input variables
         x1 = prog.NewContinuousVariables(N+1, 4, name='p1_state')        # state of player 1
         u1 = prog.NewContinuousVariables(N, 2, name='p1_input')          # inputs for player 1
         xp = prog.NewContinuousVariables(N+1, 4, name='puck_state')      # state of the puck
 
         # Slack variables
-        t1_kick = prog.NewBinaryVariables(N+1, name='kick_time')      # slack variables that captures if we player 1 is kicking or not at the given time step
+        t1_kick = prog.NewContinuousVariables(N+1, name='kick_time')     # slack variables that captures if we player 1 is kicking or not at the given time step
+                                                                         # Defined as continous, but treated as mixed integer
         v1_kick = prog.NewContinuousVariables(N+1, 2, name='v1_kick')    # velocity of player after kick to puck
         vp_kick = prog.NewContinuousVariables(N+1, 2, name='vp_kick')    # velocity of puck after being kicked by the player
 
         #### COST and final states
         # TODO: find adequate final velocity
         x_puck_des = np.concatenate((p_goal, np.zeros(2)), axis=0)      # desired position and vel for puck
-        prog.AddQuadraticErrorCost(Q=self.mpc_params.Q_puck, x_desired=x_puck_des, vars=xp[-1])
+        for k in range(N+1):
+            prog.AddQuadraticErrorCost(Q=self.mpc_params.Q_puck, x_desired=x_puck_des, vars=xp[k])  # puck in the goal
         for k in range(N):
-            prog.AddQuadraticCost(u1[k].flatten().dot(u1[k]))
+            prog.AddQuadraticCost(u1[k].flatten().dot(u1[k]))                                       # be wise on control effort
 
         # Initial states for puck and player
         prog.AddBoundingBoxConstraint(x_p1, x_p1, x1[0])        # Intial state for player 1
@@ -47,7 +50,7 @@ class CentralizedMPC():
         # Use slack variable to activate guard condition. 
         M = 15
         for k in range(N+1):
-            prog.AddConstraint((x1[k, 0:2]-xp[k, 0:2]).dot(x1[k, 0:2]-xp[k, 0:2]) <= M*(1-t1_kick[k]))
+            prog.AddConstraint((x1[k, 0:2]-xp[k, 0:2]).dot(x1[k, 0:2]-xp[k, 0:2]) <= (M*(1-t1_kick[k]))**2)
 
         # Hybrid dynamics for player
         for k in range(N):
@@ -69,12 +72,30 @@ class CentralizedMPC():
         self.add_arena_limits(prog, x1, N)
         self.add_arena_limits(prog, xp, N)
 
+        # fake mixed-integer constraint
+        for k in range(N+1):
+            prog.AddBoundingBoxConstraint(0, 1, t1_kick[k])
+            prog.AddConstraint(t1_kick[k]*(1-t1_kick[k])==0)
+            #prog.AddConstraint(t1_kick[k]==1)
+
         # solve for the periods
         solver = SnoptSolver()
         result = solver.Solve(prog)
 
+        if not result.is_success():
+            print("Unable to find solution.")
+
+        if True:
+            print("x1:{}".format(result.GetSolution(x1)))
+            print("u1: {}".format( result.GetSolution(u1)))
+            print("xp: {}".format( result.GetSolution(xp)))
+            print("t1_kick:{}".format(result.GetSolution(t1_kick)))
+            print("v1_kick:{}".format(result.GetSolution(v1_kick)))
+            print("vp_kick:{}".format(result.GetSolution(vp_kick)))
+
         # return whether successful, and the initial player velocity
-        return result.is_success(), result.GetSolution(u1)
+        u1_opt = result.GetSolution(u1)
+        return result.is_success(), u1_opt, np.zeros((N, 2))
 
     def get_reset_velocities(self, v_puck_bfr, v_player_bfr):
         # a: puck
@@ -95,10 +116,10 @@ class CentralizedMPC():
     def add_input_limits(self, prog, u, N):
         for k in range(N):
             bound = np.array([self.sim_params.input_limit, self.sim_params.input_limit])
-            prog.AddBoundingBoxConstraint(-bound, +bound, u[k])
+            prog.AddBoundingBoxConstraint(-bound, bound, u[k])
 
     def add_arena_limits(self, prog, state, N):
         r = self.sim_params.player_radius
         bound = np.array([self.sim_params.arena_limits_x / 2.0 + r, self.sim_params.arena_limits_y / 2.0 + r])
         for k in range(N+1):
-            prog.AddBoundingBoxConstraint(-bound, +bound, state[k, 0:2])
+            prog.AddBoundingBoxConstraint(-bound, bound, state[k, 0:2])
