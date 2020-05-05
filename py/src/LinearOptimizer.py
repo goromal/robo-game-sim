@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # pydrake imports
-from pydrake.all import eq, MathematicalProgram, Solve, Variable, LinearSystem, DirectTranscription, DirectCollocation, PiecewisePolynomial
+from pydrake.all import eq, MathematicalProgram, Solve, Variable, LinearSystem, DirectTranscription, DirectCollocation, PiecewisePolynomial, SnoptSolver
 
 class LinearOptimizer:
     def __init__(self, params):
@@ -67,66 +67,48 @@ class LinearOptimizer:
         u_values = u_sol.vector_values(u_sol.get_segment_times())
         return result.is_success(), u_values
 
-    def min_time_traj(self, p0, v0, pf, vf, xlim=None, ylim=None):
-        #return self.min_time_traj_transcription(p0, v0, pf, vf)
+    def min_time_traj(self, p0, v0, pf, vf):
         return self.min_time_traj_dir_col(p0, v0, pf, vf)
 
-    def min_time_traj_dir_col(self, p0, v0, pf, vf, xlim=None, ylim=None):
+    def min_time_traj_dir_col(self, p0, v0, pf, vf):
         """generate minimum time trajectory while avoiding obs"""
-        T = 2
-        N = int(T/self.params.dt)
-        N = 21
+        N = 15
         x0 = np.concatenate((p0, v0), axis=0)
         xf = np.concatenate((pf, vf), axis=0)
-        prog = DirectCollocation(self.sys_c, self.sys_c.CreateDefaultContext(), N, minimum_timestep=0.05, maximum_timestep=0.2)
+        prog = DirectCollocation(self.sys_c, self.sys_c.CreateDefaultContext(), N, minimum_timestep=self.params.dt, maximum_timestep=self.params.dt)
         prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())     # initial states
-        prog.AddBoundingBoxConstraint(xf, xf, prog.final_state())
+        #prog.AddBoundingBoxConstraint(xf, xf, prog.final_state())
         
         prog.AddEqualTimeIntervalsConstraints()   
 
         self.add_input_limits(prog)
         self.add_arena_limits(prog)
 
-        #R = 10  # Cost on input "effort".
-        #u = prog.input()
-        #prog.AddRunningCost(R * u[0]**2)
+        prog.AddQuadraticErrorCost(Q=10.0*np.eye(4), x_desired=xf, vars=prog.final_state())
 
         #initial_x_trajectory = PiecewisePolynomial.FirstOrderHold([0., 4.], np.column_stack((x0, xf)))  # yapf: disable
         #prog.SetInitialTrajectory(PiecewisePolynomial(), initial_x_trajectory)
 
-        prog.AddFinalCost(prog.time())
-
-        result = Solve(prog)
+        #prog.AddFinalCost(prog.time())
+        solver = SnoptSolver()
+        result = solver.Solve(prog)
         if not result.is_success():
             print("Minimum time trajectory: optimization failed")
 
         u_trajectory = prog.ReconstructInputTrajectory(result)
-        T = u_trajectory.end_time() - u_trajectory.start_time()
-        N_sol = int(T/self.params.dt)
-        times = np.linspace(u_trajectory.start_time(), u_trajectory.end_time(), 100)
-        print("u_trajectory.value", u_trajectory.value)
-        u_lookup = np.vectorize(u_trajectory.value)
-        u_values = u_lookup(times)
+        u_values = u_trajectory.vector_values(u_trajectory.get_segment_times())
 
-        ### ERROR ##
-        #TypeError: only size-1 arrays can be converted to Python scalars
-        #The above exception was the direct cause of the following exception:
-        #Traceback (most recent call last):
-        #File "../py/run_sim.py", line 44, in <module>
-        #velB1, velB2 = away_team.run(sim_state)
-        #File "/home/andrea/libs/robo-game-sim/py/src/ClassicalTeam.py", line 31, in run
-        #self.goalie.defend(state)
-        #File "/home/andrea/libs/robo-game-sim/py/src/ClassicalPlayer.py", line 130, in defend
-        #successfull, self.u_traj = self.linear_optimizer.min_time_traj(p0, v0, np.array([pf_x, pf_y]), np.zeros(2),  None)
-        #File "/home/andrea/libs/robo-game-sim/py/src/LinearOptimizer.py", line 72, in min_time_traj
-        #return self.min_time_traj_dir_col(p0, v0, pf, vf)
-        #File "/home/andrea/libs/robo-game-sim/py/src/LinearOptimizer.py", line 109, in min_time_traj_dir_col
+        #T = u_trajectory.end_time() - u_trajectory.start_time()
+        #N_sol = int(T/self.params.dt)
+        #print(T)
+        #times = np.linspace(u_trajectory.start_time(), u_trajectory.end_time(), N_sol)
+        #print("u_trajectory.value", u_trajectory.value)
+        #u_lookup = np.vectorize(u_trajectory.value)
+        #print("u_lookup.shape", u_lookup.shape)
         #u_values = u_lookup(times)
-        #File "/home/andrea/.local/lib/python3.6/site-packages/numpy/lib/function_base.py", line 2091, in __call__
-        #return self._vectorize_call(func=func, args=vargs)
-        #File "/home/andrea/.local/lib/python3.6/site-packages/numpy/lib/function_base.py", line 2170, in _vectorize_call
-        #res = array(outputs, copy=False, subok=True, dtype=otypes[0])
-        #ValueError: setting an array element with a sequence.
+        #print(times)
+        #u_values = u_trajectory.vector_values(times)
+
         return result.is_success(), u_values
 
     def add_input_limits(self, prog):
