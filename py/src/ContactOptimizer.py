@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from pydrake.all import eq, MathematicalProgram, Solve, Variable, LinearSystem, DirectTranscription, GetInfeasibleConstraints
 
 class ContactOptimizer:
-    """"""
     def __init__(self, params):
         self.params = params
 

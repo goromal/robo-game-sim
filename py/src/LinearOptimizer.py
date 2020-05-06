@@ -24,10 +24,7 @@ class LinearOptimizer:
         prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())
         prog.AddBoundingBoxConstraint(xf, xf, prog.final_state())
 
-        # input limits
         self.add_input_limits(prog)
-
-        # remain inside arena
         self.add_arena_limits(prog)
 
         # cost
@@ -42,10 +39,8 @@ class LinearOptimizer:
         u_values = u_sol.vector_values(u_sol.get_segment_times())
         return result.is_success(), u_values
     
-    # TODO: minimum time trajectory
-    # Reach a certain position in minimum time, regardless of anything else.
     def min_time_traj_transcription(self, p0, v0, pf, vf, xlim=None, ylim=None):
-        """generate minimum time trajectory while avoiding obs"""
+        """Minimum time traj using directi transcription."""
         T = 2
         N = int(T/self.params.dt)
         x0 = np.concatenate((p0, v0), axis=0)
@@ -67,8 +62,9 @@ class LinearOptimizer:
         u_values = u_sol.vector_values(u_sol.get_segment_times())
         return result.is_success(), u_values
 
-    # TODO: Use direct collocation for minimum time planner
     def min_time_bounce_kick_traj(self, p0, v0, p0_puck, v0_puck, v_puck_desired):
+        """Use direct transcription to calculate player's trajectory for bounce kick. The elastic collision is enforced
+        when robot reaches the desired position at specified time."""
         T = 1
         x0 = np.concatenate((p0, v0), axis=0)
         prog = DirectTranscription(self.sys, self.sys.CreateDefaultContext(), int(T/self.params.dt))
@@ -76,7 +72,7 @@ class LinearOptimizer:
         self.add_final_state_constraint_elastic_collision(prog, p0_puck, v0_puck, v_puck_desired)
         self.add_input_limits(prog)
         self.add_arena_limits(prog)
-        # prog.AddFinalCost(prog.time())
+        prog.AddFinalCost(prog.time())
 
         result = Solve(prog)
         u_sol = prog.ReconstructInputTrajectory(result)
@@ -86,11 +82,10 @@ class LinearOptimizer:
         u_values = u_sol.vector_values(u_sol.get_segment_times())
         return result.is_success(), u_values
 
-
-    # TODO: Use direct collocation for minimum time planner
+    # TODO: This does not work..
     def min_time_bounce_kick_traj_dir_col(self, p0, v0, p0_puck, v0_puck, v_puck_desired):
         """generate minimum time trajectory while avoiding obs"""
-        N = 20
+        N = 15
         minT = self.params.dt / N
         maxT = 5.0 / N
         x0 = np.concatenate((p0, v0), axis=0)
@@ -98,11 +93,8 @@ class LinearOptimizer:
                                  minimum_timestep=minT,
                                  maximum_timestep=maxT)
         prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())
-
         prog.AddEqualTimeIntervalsConstraints()
-
         self.add_final_state_constraint_elastic_collision(prog, p0_puck, v0_puck, v_puck_desired)
-
         self.add_input_limits(prog)
         self.add_arena_limits(prog)
 
@@ -117,30 +109,15 @@ class LinearOptimizer:
         if not result.is_success():
             print("Minimum time trajectory: optimization failed")
 
-
         u_trajectory = prog.ReconstructInputTrajectory(result)
         times = np.linspace(u_trajectory.start_time(), u_trajectory.end_time(), (u_trajectory.end_time() - u_trajectory.start_time()) / self.params.dt )
-        print("times: ", times.shape)
-        # u_lookup = np.vectorize(u_trajectory.value)
 
         u_values = np.empty((2, len(times)))
         for i, t in enumerate(times):
             u_values[:, i] = u_trajectory.value(t).flatten()
 
-        #T = u_trajectory.end_time() - u_trajectory.start_time()
-        #N_sol = int(T/self.params.dt)
-        #print(T)
-        #times = np.linspace(u_trajectory.start_time(), u_trajectory.end_time(), N_sol)
-        #print("u_trajectory.value", u_trajectory.value)
-        #u_lookup = np.vectorize(u_trajectory.value)
-        #print("u_lookup.shape", u_lookup.shape)
-        #u_values = u_lookup(times)
-        #print(times)
-        #u_values = u_trajectory.vector_values(times)
-
         return result.is_success(), u_values
 
-    # TODO: account for moving puck. Right now puck is assumed to be static
     def add_final_state_constraint_elastic_collision(self, prog, p0_puck, v0_puck, v_puck_desired):
         m1 = self.params.player_mass
         m2 = self.params.puck_mass
@@ -163,41 +140,38 @@ class LinearOptimizer:
     def min_time_traj_dir_col(self, p0, v0, pf, vf):
         """generate minimum time trajectory while avoiding obs"""
         N = 15
+        minT = self.params.dt / N
+        maxT = 5.0 / N
         x0 = np.concatenate((p0, v0), axis=0)
         xf = np.concatenate((pf, vf), axis=0)
-        prog = DirectCollocation(self.sys_c, self.sys_c.CreateDefaultContext(), N, minimum_timestep=self.params.dt, maximum_timestep=self.params.dt)
-        prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())     # initial states
-        #prog.AddBoundingBoxConstraint(xf, xf, prog.final_state())
-        
-        prog.AddEqualTimeIntervalsConstraints()   
 
+        prog = DirectCollocation(self.sys_c, self.sys_c.CreateDefaultContext(), num_time_samples=N,
+                                 minimum_timestep=minT,
+                                 maximum_timestep=maxT)
+        prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())
+        prog.AddEqualTimeIntervalsConstraints()
         self.add_input_limits(prog)
         self.add_arena_limits(prog)
 
         prog.AddQuadraticErrorCost(Q=10.0*np.eye(4), x_desired=xf, vars=prog.final_state())
+        prog.AddFinalCost(prog.time())
 
-        #initial_x_trajectory = PiecewisePolynomial.FirstOrderHold([0., 4.], np.column_stack((x0, xf)))  # yapf: disable
-        #prog.SetInitialTrajectory(PiecewisePolynomial(), initial_x_trajectory)
-
-        #prog.AddFinalCost(prog.time())
         solver = SnoptSolver()
         result = solver.Solve(prog)
         if not result.is_success():
             print("Minimum time trajectory: optimization failed")
 
+        # subsample trajectory accordingly
         u_trajectory = prog.ReconstructInputTrajectory(result)
-        u_values = u_trajectory.vector_values(u_trajectory.get_segment_times())
+        duration = u_trajectory.end_time() - u_trajectory.start_time()
+        if duration > self.params.dt:
+            times = np.linspace(u_trajectory.start_time(), u_trajectory.end_time(), (u_trajectory.end_time() - u_trajectory.start_time()) / self.params.dt )
+        else:
+            times = np.array([0])
 
-        #T = u_trajectory.end_time() - u_trajectory.start_time()
-        #N_sol = int(T/self.params.dt)
-        #print(T)
-        #times = np.linspace(u_trajectory.start_time(), u_trajectory.end_time(), N_sol)
-        #print("u_trajectory.value", u_trajectory.value)
-        #u_lookup = np.vectorize(u_trajectory.value)
-        #print("u_lookup.shape", u_lookup.shape)
-        #u_values = u_lookup(times)
-        #print(times)
-        #u_values = u_trajectory.vector_values(times)
+        u_values = np.empty((2, len(times)))
+        for i, t in enumerate(times):
+            u_values[:, i] = u_trajectory.value(t).flatten()
 
         return result.is_success(), u_values
 
