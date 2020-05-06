@@ -11,7 +11,7 @@ sim = GameSim()
 # Sim parameters
 class GameParams:
     def __init__(self):
-        self.T = 40.0 # seconds, max total time
+        self.T = 10.0 # seconds, max total time
         self.dt = 0.05
         self.player_radius = 0.2
         self.puck_radius = 0.175

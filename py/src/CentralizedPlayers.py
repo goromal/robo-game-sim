@@ -17,7 +17,17 @@ class MpcParams():
         self.D_puck = np.zeros((4,2))
         self.sys_puck = LinearSystem(self.A_puck, self.B_puck, self.C_puck, self.D_puck, self.params.dt)
 
+        self.A_player_c = np.array([[0, 0, 1, 0], [0, 0, 0, 1], [0, 0, -1.0/self.params.tau_player, 0], [0, 0, 0, -1.0/self.params.tau_player]])
+        self.B_player_c = np.array([[0, 0], [0, 0], [1.0/self.params.tau_player, 0], [0, 1.0/self.params.tau_player]])
+        self.C_player_c = np.eye(4)
+        self.D_player_c = np.zeros((4,2))
+        self.sys_c = LinearSystem(self.A_player_c, self.B_player_c, self.C_player, self.D_player_c)
+
         self.Q_puck = np.eye(4) # TODO: penalize velocity differently
+        self.N = 20
+        self.minT = self.params.dt / self.N
+        self.maxT = 5.0 / self.N
+        self.Omega_N_max = np.array([[10.0,  0.0,  0.0,  0.0],[ 0.0, 10.0,  0.0,  0.0],[ 0.0,  0.0, 20.0,  0.0],[ 0.0,  0.0,  0.0, 20.0]])
         #self.Q_puck[2:4, 2:4] = np.zeros((2,2))
 
 
