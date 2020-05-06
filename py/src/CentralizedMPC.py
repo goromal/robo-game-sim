@@ -7,9 +7,11 @@ class CentralizedMPC():
     def __init__(self, sim_params, mpc_params):
         self.sim_params = sim_params
         self.mpc_params = mpc_params
-        self.prev_u1 = None
-        self.prev_x1 = None
         self.prev_xp = None
+
+        # To generate intial guess for one player
+        self.prev_u = None
+        self.prev_x = None
 
     def compute_control(self, x_p1, x_p2, x_puck, p_goal, obstacles):
         """Solve for initial velocity for the puck to bounce the wall once and hit the goal."""
@@ -136,7 +138,7 @@ class CentralizedMPC():
 
         # return whether successful, and the initial player velocity
         #u1_opt = result.GetSolution(u1)
-        return True, guess_u1, np.zeros((N, 2))
+        return True, guess_u1[0,:], np.zeros((2))
 
     def get_reset_velocities(self, v_puck_bfr, v_player_bfr):
         # a: puck
@@ -170,7 +172,7 @@ class CentralizedMPC():
             prog.AddBoundingBoxConstraint(-bound, bound, state[k, 0:2])
 
     def get_initial_guess(self, x0, p_goal, p_puck):
-
+        """This is basically the single-agent MPC algorithm"""
         pf, vf = self.get_final_state_for_kick(p_goal, p_puck, 4.0)
         x_des = np.concatenate((pf, vf), axis=0)        
         print("pf", pf)
@@ -187,11 +189,11 @@ class CentralizedMPC():
         prog.AddEqualTimeIntervalsConstraints()
 
         # generate trajectory non in collision with puck 
-        for n in range(self.mpc_params.N):
-            x = prog.state()
-            eps = 0.1
-            obs_pos = p_puck[0:2]
-            prog.AddConstraintToAllKnotPoints((x[0:2]-obs_pos).dot(x[0:2]-obs_pos) >= (self.sim_params.player_radius + self.sim_params.puck_radius - eps)**2)
+        #for n in range(self.mpc_params.N):
+        #    x = prog.state()
+        #    eps = 0.1
+        #    obs_pos = p_puck[0:2]
+        #    prog.AddConstraintToAllKnotPoints((x[0:2]-obs_pos).dot(x[0:2]-obs_pos) >= (self.sim_params.player_radius + self.sim_params.puck_radius - eps)**2)
 
         prog.AddConstraintToAllKnotPoints(prog.input()[0] <=  self.sim_params.input_limit)
         prog.AddConstraintToAllKnotPoints(prog.input()[0] >= -self.sim_params.input_limit)
@@ -206,11 +208,17 @@ class CentralizedMPC():
 
         prog.AddFinalCost(prog.time())
 
+        if not self.prev_u is None and not self.prev_x is None:
+            prog.SetInitialTrajectory(traj_init_u=self.prev_u, traj_init_x=self.prev_x)
+
         solver = SnoptSolver()
         result = solver.Solve(prog)
 
         u_traj = prog.ReconstructInputTrajectory(result)
         x_traj = prog.ReconstructStateTrajectory(result)
+
+        self.prev_u = u_traj
+        self.prev_x = x_traj
 
         u_vals = u_traj.vector_values(u_traj.get_segment_times())
         x_vals = x_traj.vector_values(x_traj.get_segment_times())
@@ -219,7 +227,7 @@ class CentralizedMPC():
 
     def get_final_state_for_kick(self, p_goal, p_puck, kick_velocity):
         shoot_direction = self.get_shoot_direction(p_goal, p_puck)
-        pf = p_puck - shoot_direction*(self.sim_params.puck_radius + self.sim_params.player_radius)
+        pf = p_puck #- shoot_direction*(self.sim_params.puck_radius + self.sim_params.player_radius)
         vf = kick_velocity*shoot_direction
         return pf, vf
 

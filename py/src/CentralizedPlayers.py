@@ -25,8 +25,8 @@ class MpcParams():
 
         self.Q_puck = np.eye(4) # TODO: penalize velocity differently
         self.N = 20
-        self.minT = self.params.dt / self.N
-        self.maxT = 5.0 / self.N
+        self.minT = self.params.dt
+        self.maxT = self.params.dt
         self.Omega_N_max = np.array([[10.0,  0.0,  0.0,  0.0],[ 0.0, 10.0,  0.0,  0.0],[ 0.0,  0.0, 20.0,  0.0],[ 0.0,  0.0,  0.0, 20.0]])
         #self.Q_puck[2:4, 2:4] = np.zeros((2,2))
 
@@ -52,8 +52,8 @@ class CentralizedPlayers():
         x_puck = state.get_puck_state()
         x_goal = self.get_adversary_goal_pos()
         obstacles = self.get_pos_of_other_players(state)
-        _, cmd1, cmd2 = self.controller.compute_control(x_p1, x_p2, x_puck, x_goal, obstacles)
-        return cmd1[0], cmd2[0]
+        converged, cmd1, cmd2 = self.controller.compute_control(x_p1, x_p2, x_puck, x_goal, obstacles)
+        return cmd1, cmd2
 
     # Where the ball should be kicked
     # Note: code duplicated from classical player :(
