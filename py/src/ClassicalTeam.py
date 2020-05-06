@@ -35,7 +35,7 @@ class ClassicalTeam:
         ## # Plan an open loop kick if not doing it already!
         #if self.player.is_idle():
         #self.player.simple_kick_avoiding_obs(state, 5.0)
-        
+
         # Do not change below here
         vel_goalie, _ = self.goalie.get_control()
         vel_player, _ = self.player.get_control()
@@ -43,7 +43,11 @@ class ClassicalTeam:
 
     def evaluateGame(self, state):
         """Determine what play to use"""
-        return "offense"
+        # TODO: offense if the ball is in our field
+        #       defense if at least one of the players is in our field
+        #       one player should actively intercept the ball when opponents are attacking
+
+        return "defense"
 
     def execute(self, state):
         """Execute current play"""
@@ -52,32 +56,31 @@ class ClassicalTeam:
             self.player.idle()
 
         elif self.curr_play == "offense":
-            # if self.player.is_idle():
-            #     time = 2.0
-            #     vel = 5.0
-            #     #self.player.timed_kick_avoiding_obs(state, vel, time)
-            #     self.player.simple_kick(state,  self.kick_velocity) #
-            # self.goalie.defend(state)
-
-            #################################
-            # Jeremy: Test contact optimizer
-            which_wall = "up"
-            if self.team == "A":
-                self.goalie.defend(state)
-                if not self.bounce_kick_planned:
-                    self.player.bounce_kick(state, which_wall)
-                    self.bounce_kick_planned = True
-            else:
-                # self.goalie.idle()
-                # self.player.idle()
-                self.player.defend(state)
-                self.goalie.defend(state)
-            #################################
+            if self.player.is_idle():
+                time = 2.0
+                vel = 5.0
+                # self.player.timed_kick_avoiding_obs(state, vel, time)
+                self.player.simple_kick(state,  self.kick_velocity) #
+            self.goalie.defend(state)
 
         elif self.curr_play == "defense":
             self.player.defend(state)
             self.goalie.defend(state)
 
+            # #################################
+            # # Jeremy: Test contact optimizer
+            # which_wall = "down"
+            # if self.team == "B":
+            #     self.goalie.defend(state)
+            #     if not self.bounce_kick_planned:
+            #         self.player.bounce_kick(state, which_wall)
+            #         self.bounce_kick_planned = True
+            # else:
+            #     # self.goalie.idle()
+            #     # self.player.idle()
+            #     self.player.defend(state)
+            #     self.goalie.defend(state)
+            # #################################
 
     def clean_up(self):
         """Clean up for current play"""

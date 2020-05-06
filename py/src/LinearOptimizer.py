@@ -76,7 +76,7 @@ class LinearOptimizer:
         self.add_final_state_constraint_elastic_collision(prog, p0_puck, v0_puck, v_puck_desired)
         self.add_input_limits(prog)
         self.add_arena_limits(prog)
-        prog.AddFinalCost(prog.time())
+        # prog.AddFinalCost(prog.time())
 
         result = Solve(prog)
         u_sol = prog.ReconstructInputTrajectory(result)
@@ -84,6 +84,60 @@ class LinearOptimizer:
             print("Minimum time bounce kick trajectory: optimization failed")
 
         u_values = u_sol.vector_values(u_sol.get_segment_times())
+        return result.is_success(), u_values
+
+
+    # TODO: Use direct collocation for minimum time planner
+    def min_time_bounce_kick_traj_dir_col(self, p0, v0, p0_puck, v0_puck, v_puck_desired):
+        """generate minimum time trajectory while avoiding obs"""
+        N = 20
+        minT = self.params.dt / N
+        maxT = 5.0 / N
+        x0 = np.concatenate((p0, v0), axis=0)
+        prog = DirectCollocation(self.sys_c, self.sys_c.CreateDefaultContext(), num_time_samples=N,
+                                 minimum_timestep=minT,
+                                 maximum_timestep=maxT)
+        prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())
+
+        prog.AddEqualTimeIntervalsConstraints()
+
+        self.add_final_state_constraint_elastic_collision(prog, p0_puck, v0_puck, v_puck_desired)
+
+        self.add_input_limits(prog)
+        self.add_arena_limits(prog)
+
+        # prog.AddQuadraticErrorCost(Q=10.0*np.eye(4), x_desired=xf, vars=prog.final_state())
+        pf = p0_puck - self.get_normalized_vector(v_puck_desired)*(self.params.puck_radius + self.params.player_radius)
+        prog.AddQuadraticErrorCost(Q=10.0*np.eye(2), x_desired=pf, vars=prog.final_state()[:2])
+
+        prog.AddFinalCost(prog.time())
+
+        solver = SnoptSolver()
+        result = solver.Solve(prog)
+        if not result.is_success():
+            print("Minimum time trajectory: optimization failed")
+
+
+        u_trajectory = prog.ReconstructInputTrajectory(result)
+        times = np.linspace(u_trajectory.start_time(), u_trajectory.end_time(), (u_trajectory.end_time() - u_trajectory.start_time()) / self.params.dt )
+        print("times: ", times.shape)
+        # u_lookup = np.vectorize(u_trajectory.value)
+
+        u_values = np.empty((2, len(times)))
+        for i, t in enumerate(times):
+            u_values[:, i] = u_trajectory.value(t).flatten()
+
+        #T = u_trajectory.end_time() - u_trajectory.start_time()
+        #N_sol = int(T/self.params.dt)
+        #print(T)
+        #times = np.linspace(u_trajectory.start_time(), u_trajectory.end_time(), N_sol)
+        #print("u_trajectory.value", u_trajectory.value)
+        #u_lookup = np.vectorize(u_trajectory.value)
+        #print("u_lookup.shape", u_lookup.shape)
+        #u_values = u_lookup(times)
+        #print(times)
+        #u_values = u_trajectory.vector_values(times)
+
         return result.is_success(), u_values
 
     # TODO: account for moving puck. Right now puck is assumed to be static
@@ -100,7 +154,7 @@ class LinearOptimizer:
         prog.AddConstraint(eq(p1, pf))
 
         # Final velocity constraint
-        v_puck_after_collision = v2 - 2*m1/(m1+m2)*(v2-v1).dot(p2-pf)/(p2-pf).dot(p2-pf)*(p2-pf)
+        v_puck_after_collision = v2 - 2*m1/(m1+m2)*(v2-v1).dot(p2-pf)/(p2-pf).dot(p2-pf)*(p2-pf)    # perhaps not a nonlinear constraint, since dot product of v1 is required
         prog.AddConstraint(eq(v_puck_after_collision, v_puck_desired))
 
     def min_time_traj(self, p0, v0, pf, vf):

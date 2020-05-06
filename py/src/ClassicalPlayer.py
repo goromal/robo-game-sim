@@ -144,6 +144,7 @@ class ClassicalPlayer:
             p0_puck = state.get_puck_pos()
             v0_puck = state.get_puck_vel()
             successfull, self.u_traj = self.linear_optimizer.min_time_bounce_kick_traj(p0, v0, p0_puck, v0_puck, v_puck_desired)
+            # successfull, self.u_traj = self.linear_optimizer.min_time_bounce_kick_traj_dir_col(p0, v0, p0_puck, v0_puck, v_puck_desired) # Not working
 
             if successful:
                 print("min_time_bounce_kick_traj optimization succeeded.")
@@ -161,10 +162,19 @@ class ClassicalPlayer:
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
 
-        #pf_y = state.get_puck_pos()[1]
-        pf_y = state.get_player_pos(self.get_adversary_team(), 1)[1]
+        # y position control
+        defense_y_range = self.params.goal_height
+        puck_y_pos = state.get_puck_pos()[1]
+        # pf_y = state.get_player_pos(self.get_adversary_team(), 1)[1]
+
+        if puck_y_pos >= defense_y_range/2.:
+            pf_y = defense_y_range/2.
+        elif puck_y_pos <= -defense_y_range/2.:
+            pf_y = -defense_y_range/2.
+        else:
+            pf_y = puck_y_pos
+
         defense_line = 0.3
-        pf_x = 0.0
         if self.field > 0:
             pf_x = self.params.arena_limits_x/2.0 - defense_line
         else:
