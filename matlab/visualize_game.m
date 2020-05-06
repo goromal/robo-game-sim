@@ -19,7 +19,7 @@ addpath(genpath('matlab_utilities'))
 system('../py/run_sim.py');
 
 % Read output log file, sample at 20 FPS
-logdata = read_log(logfile, 17);
+logdata = read_log(logfile, 29);
 t_raw   = logdata(1,:);
 score_A = logdata(2,:);
 score_B = logdata(3,:);
