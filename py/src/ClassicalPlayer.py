@@ -101,10 +101,12 @@ class ClassicalPlayer:
 
         return successfull
 
-    # TODO
-    def bounce_kick(self, state):
+
+    def bounce_kick(self, state, which_wall):
+        """Kick the puck to the specified wall and bounce to adversary's goal."""
         puck_pos = state.get_puck_pos()
-        successful, v_puck_desired = self.contact_optimizer.bounce_pass_wall(puck_pos)
+        p_goal = self.get_adversary_goal_pos()
+        successful, v_puck_desired = self.contact_optimizer.bounce_pass_wall(puck_pos, p_goal, which_wall)
         if successful:
             p0 = state.get_player_pos(self.team, self.player_id)
             v0 = state.get_player_vel(self.team, self.player_id)
