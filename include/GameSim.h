@@ -1,6 +1,7 @@
 #pragma once
 #include <Eigen/Core>
 #include "SimState.h"
+#include <random>
 
 enum {NO_SCORE, TEAM_A_SCORE, TEAM_B_SCORE};
 
@@ -10,7 +11,7 @@ public:
     GameSim();
     ~GameSim();
     Eigen::Matrix<double, SimState::SIZE, 1> reset(const double &dt, const int &winning_score,
-               const Eigen::Vector4d &x0_ball, const bool &log, const std::string &logname);
+               const Eigen::Vector4d &x0_ball, const double& noise, const bool &log, const std::string &logname);
     bool undecided();
     Eigen::Matrix<double, SimState::SIZE, 1> run(const Eigen::Vector2d &vel_A1, const Eigen::Vector2d &vel_A2,
                                                  const Eigen::Vector2d &vel_B1, const Eigen::Vector2d &vel_B2);
@@ -25,7 +26,8 @@ private:
     unsigned int checkWallCollisions();
     void checkAgentCollisions();
     void collideElastically(const double &m1, const double &m2, const double &r1, const double &r2,
-                            Ref<Vector4d> x1, Ref<Vector4d> x2);
+                            Ref<Vector4d> x1, Ref<Vector4d> x2, const bool &penalize,
+                            const int &ID1, const int &ID2);
     double mass(const unsigned int &id);
     double radius(const unsigned int &id);
 
@@ -51,4 +53,7 @@ private:
     SimState state_;
     Logger logger_;
 
+    std::default_random_engine reng_;
+    double w_stdev_;
+    std::normal_distribution<double> w_dist_;
 };

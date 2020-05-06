@@ -18,11 +18,7 @@ struct SimState
         A2 = 10,
         B1 = 14,
         B2 = 18,
-        A1_COL = 22,
-        A2_COL = 23,
-        B1_COL = 24,
-        B2_COL = 25,
-        SIZE = 26
+        SIZE = 22
     };
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     Eigen::Matrix<double, SIZE, 1> arr;
@@ -33,10 +29,33 @@ struct SimState
     Eigen::Map<Eigen::Vector4d> x_A2;
     Eigen::Map<Eigen::Vector4d> x_B1;
     Eigen::Map<Eigen::Vector4d> x_B2;
-    double& A1_collisions;
-    double& A2_collisions;
-    double& B1_collisions;
-    double& B2_collisions;
+    Eigen::Matrix4d damage;
+
+    void addDamage(const int &ID_aggressor, const int &ID_victim, const double &dmg)
+    {
+        damage(indexFromID(ID_aggressor), indexFromID(ID_victim)) += dmg;
+    }
+
+    int indexFromID(const int &ID)
+    {
+        int idx = -1;
+        switch(ID)
+        {
+        case A1:
+            idx = 0;
+            break;
+        case A2:
+            idx = 1;
+            break;
+        case B1:
+            idx = 2;
+            break;
+        case B2:
+            idx = 3;
+            break;
+        }
+        return idx;
+    }
 
     SimState() :
         TeamAScore(*(arr.data()+TAS)),
@@ -45,11 +64,7 @@ struct SimState
         x_A1(arr.data()+A1),
         x_A2(arr.data()+A2),
         x_B1(arr.data()+B1),
-        x_B2(arr.data()+B2),
-        A1_collisions(*(arr.data()+A1_COL)),
-        A2_collisions(*(arr.data()+A2_COL)),
-        B1_collisions(*(arr.data()+B1_COL)),
-        B2_collisions(*(arr.data()+B2_COL))
+        x_B2(arr.data()+B2)
     {
         arr.setZero();
     }
