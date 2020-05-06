@@ -61,15 +61,17 @@ class ClassicalTeam:
 
             #################################
             # Jeremy: Test contact optimizer
-            which_wall = "down"
-            if self.team == "B":
+            which_wall = "up"
+            if self.team == "A":
                 self.goalie.defend(state)
                 if not self.bounce_kick_planned:
                     self.player.bounce_kick(state, which_wall)
                     self.bounce_kick_planned = True
             else:
-                self.goalie.idle()
-                self.player.idle()
+                # self.goalie.idle()
+                # self.player.idle()
+                self.player.defend(state)
+                self.goalie.defend(state)
             #################################
 
         elif self.curr_play == "defense":

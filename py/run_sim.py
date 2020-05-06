@@ -11,7 +11,7 @@ sim = GameSim()
 # Sim parameters
 class GameParams:
     def __init__(self):
-        self.T = 20.0 # seconds, max total time
+        self.T = 5.0 # seconds, max total time
         self.dt = 0.05
         self.player_radius = 0.2
         self.puck_radius = 0.175
@@ -31,7 +31,7 @@ log = params.log
 logname = params.logname
 
 # Reset sim (this can be done an arbitrary number of times)
-sim.reset(params.dt, params.winning_score, params.x0_ball, params.log, params.logname)
+sim.reset(params.dt, params.winning_score, params.x0_ball, 0, params.log, params.logname)
 sim_state = SimState(sim.run(np.zeros(2), np.zeros(2), np.zeros(2), np.zeros(2)))
 
 # Create two teams

@@ -100,7 +100,6 @@ class LinearOptimizer:
         prog.AddConstraint(eq(p1, pf))
 
         # Final velocity constraint
-        # v_puck_after_collision = v2 - 2*m1/(m1+m2)*(v2-v1).dot(p2-p1)/(p2-p1).dot(p2-p1)*(p2-p1) # doesn't work for some reason
         v_puck_after_collision = v2 - 2*m1/(m1+m2)*(v2-v1).dot(p2-pf)/(p2-pf).dot(p2-pf)*(p2-pf)
         prog.AddConstraint(eq(v_puck_after_collision, v_puck_desired))
 
