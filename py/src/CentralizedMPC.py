@@ -7,13 +7,14 @@ class CentralizedMPC():
     def __init__(self, sim_params, mpc_params):
         self.sim_params = sim_params
         self.mpc_params = mpc_params
-        self.prev_u = None
-        self.prev_x = None
+        self.prev_u1 = None
+        self.prev_x1 = None
+        self.prev_xp = None
 
     def compute_control(self, x_p1, x_p2, x_puck, p_goal, obstacles):
         """Solve for initial velocity for the puck to bounce the wall once and hit the goal."""
         # initialize program
-        N = 20 # length of receding horizon
+        N = 40 # length of receding horizon
         prog = MathematicalProgram()
 
         # State and input variables
@@ -22,18 +23,34 @@ class CentralizedMPC():
         xp = prog.NewContinuousVariables(N+1, 4, name='puck_state')      # state of the puck
 
         # Slack variables
-        t1_kick = prog.NewContinuousVariables(N+1, name='kick_time')     # slack variables that captures if we player 1 is kicking or not at the given time step
-                                                                         # Defined as continous, but treated as mixed integer
+        t1_kick = prog.NewContinuousVariables(N+1, name='kick_time')     # slack variables that captures if player 1 is kicking or not at the given time step
+                                                                         # Defined as continous, but treated as mixed integer. 1 when kicking
         v1_kick = prog.NewContinuousVariables(N+1, 2, name='v1_kick')    # velocity of player after kick to puck
         vp_kick = prog.NewContinuousVariables(N+1, 2, name='vp_kick')    # velocity of puck after being kicked by the player
+        dist = prog.NewContinuousVariables(N+1, name='dist_puck_player') # distance between puck and player 
+        cost = prog.NewContinuousVariables(N+1, name='cost')             # slack variable to monitor cost
+
+        # Compute distance between puck and player as slack variable. 
+        for k in range(N+1):
+            r1 = self.sim_params.player_radius
+            rp = self.sim_params.puck_radius
+            prog.AddConstraint(dist[k] == (x1[k, 0:2]-xp[k, 0:2]).dot(x1[k, 0:2]-xp[k, 0:2]) - (r1+rp)**2 )
 
         #### COST and final states
         # TODO: find adequate final velocity
         x_puck_des = np.concatenate((p_goal, np.zeros(2)), axis=0)      # desired position and vel for puck
         for k in range(N+1):
-            prog.AddQuadraticErrorCost(Q=self.mpc_params.Q_puck, x_desired=x_puck_des, vars=xp[k])  # puck in the goal
-        for k in range(N):
-            prog.AddQuadraticCost(u1[k].flatten().dot(u1[k]))                                       # be wise on control effort
+            Q_dist_puck_goal =10*np.eye(2)
+            q_dist_puck_player =0.1
+            e1 = x_puck_des[0:2] - xp[k, 0:2] 
+            e2 = xp[k, 0:2] - x1[k, 0:2]
+            prog.AddConstraint(cost[k] == e1.dot(np.matmul(Q_dist_puck_goal, e1)) + q_dist_puck_player*dist[k])
+            prog.AddCost(cost[k])
+            #prog.AddQuadraticErrorCost(Q=self.mpc_params.Q_puck, x_desired=x_puck_des, vars=xp[k])  # puck in the goal
+            #prog.AddQuadraticErrorCost(Q=np.eye(2), x_desired=x_puck_des[0:2], vars=x1[k, 0:2])
+            #prog.AddQuadraticErrorCost(Q=10*np.eye(2), x_desired=np.array([2, 2]), vars=x1[k, 0:2]) # TEST: control position of the player instead of puck
+        #for k in range(N):
+        #    prog.AddQuadraticCost(1e-2*u1[k].dot(u1[k]))                 # be wise on control effort
 
         # Initial states for puck and player
         prog.AddBoundingBoxConstraint(x_p1, x_p1, x1[0])        # Intial state for player 1
@@ -47,10 +64,10 @@ class CentralizedMPC():
             prog.AddConstraint(eq(vp_kick[k], v_puck_aft))
             prog.AddConstraint(eq(v1_kick[k], v_player_aft))
 
-        # Use slack variable to activate guard condition. 
-        M = 15
-        for k in range(N+1):
-            prog.AddConstraint((x1[k, 0:2]-xp[k, 0:2]).dot(x1[k, 0:2]-xp[k, 0:2]) <= (M*(1-t1_kick[k]))**2)
+        # Use slack variable to activate guard condition based on distance. 
+        M = 15**2
+        for k in range(N+1): 
+            prog.AddLinearConstraint(dist[k] <= M*(1-t1_kick[k]))
 
         # Hybrid dynamics for player
         for k in range(N):
@@ -67,6 +84,14 @@ class CentralizedMPC():
             xp_next = np.matmul(A, (1 - t1_kick[k])*xp[k] + t1_kick[k]*xp_kick)
             prog.AddConstraint(eq(xp[k+1], xp_next))
 
+        # hit the ball at least once
+        #prog.AddLinearConstraint(sum(t1_kick) >=1)
+
+        # Generate trajectory that is not in direct collision with the puck
+        for k in range(N+1):
+            eps = 1e-3
+            prog.AddConstraint(dist[k] >= -eps)
+
         # Input and arena constraint
         self.add_input_limits(prog, u1, N)
         self.add_arena_limits(prog, x1, N)
@@ -74,9 +99,13 @@ class CentralizedMPC():
 
         # fake mixed-integer constraint
         for k in range(N+1):
-            prog.AddBoundingBoxConstraint(0, 1, t1_kick[k])
             prog.AddConstraint(t1_kick[k]*(1-t1_kick[k])==0)
-            #prog.AddConstraint(t1_kick[k]==1)
+
+        # Hot-start
+        if not self.prev_u1 is None and not self.prev_x1 is None:
+            prog.SetInitialGuess(x1, self.prev_x1)
+            prog.SetInitialGuess(u1, self.prev_u1)
+            prog.SetInitialGuess(xp, self.prev_xp)
 
         # solve for the periods
         solver = SnoptSolver()
@@ -84,14 +113,21 @@ class CentralizedMPC():
 
         if not result.is_success():
             print("Unable to find solution.")
-
+        
+        # save for hot-start
+        self.prev_u1 = result.GetSolution(u1)
+        self.prev_x1 = result.GetSolution(x1)
+        self.prev_xp = result.GetSolution(xp)
+        
         if True:
             print("x1:{}".format(result.GetSolution(x1)))
             print("u1: {}".format( result.GetSolution(u1)))
             print("xp: {}".format( result.GetSolution(xp)))
+            print('dist{}'.format(result.GetSolution(dist)))
             print("t1_kick:{}".format(result.GetSolution(t1_kick)))
             print("v1_kick:{}".format(result.GetSolution(v1_kick)))
             print("vp_kick:{}".format(result.GetSolution(vp_kick)))
+            print("cost:{}".format(result.GetSolution(cost)))
 
         # return whether successful, and the initial player velocity
         u1_opt = result.GetSolution(u1)

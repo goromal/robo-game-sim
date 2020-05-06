@@ -33,7 +33,6 @@ class CentralizedPlayers():
         self.player_2_id = 2
 
         # controller
-        #self.controller_params = MpcParams()
         self.controller = CentralizedMPC(self.sim_params, self.mpc_params)
 
     def attack(self, state):
