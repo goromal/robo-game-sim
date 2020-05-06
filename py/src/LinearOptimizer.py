@@ -24,10 +24,7 @@ class LinearOptimizer:
         prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())
         prog.AddBoundingBoxConstraint(xf, xf, prog.final_state())
 
-        # input limits
         self.add_input_limits(prog)
-
-        # remain inside arena
         self.add_arena_limits(prog)
 
         # cost
@@ -42,10 +39,8 @@ class LinearOptimizer:
         u_values = u_sol.vector_values(u_sol.get_segment_times())
         return result.is_success(), u_values
     
-    # TODO: minimum time trajectory
-    # Reach a certain position in minimum time, regardless of anything else.
     def min_time_traj_transcription(self, p0, v0, pf, vf, xlim=None, ylim=None):
-        """generate minimum time trajectory while avoiding obs"""
+        """Minimum time traj using directi transcription."""
         T = 2
         N = int(T/self.params.dt)
         x0 = np.concatenate((p0, v0), axis=0)
@@ -67,47 +62,116 @@ class LinearOptimizer:
         u_values = u_sol.vector_values(u_sol.get_segment_times())
         return result.is_success(), u_values
 
-    def min_time_traj(self, p0, v0, pf, vf):
-        return self.min_time_traj_dir_col(p0, v0, pf, vf)
+    def min_time_bounce_kick_traj(self, p0, v0, p0_puck, v0_puck, v_puck_desired):
+        """Use direct transcription to calculate player's trajectory for bounce kick. The elastic collision is enforced
+        when robot reaches the desired position at specified time."""
+        T = 1
+        x0 = np.concatenate((p0, v0), axis=0)
+        prog = DirectTranscription(self.sys, self.sys.CreateDefaultContext(), int(T/self.params.dt))
+        prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())
+        self.add_final_state_constraint_elastic_collision(prog, p0_puck, v0_puck, v_puck_desired)
+        self.add_input_limits(prog)
+        self.add_arena_limits(prog)
+        prog.AddFinalCost(prog.time())
 
-    def min_time_traj_dir_col(self, p0, v0, pf, vf):
+        result = Solve(prog)
+        u_sol = prog.ReconstructInputTrajectory(result)
+        if not result.is_success():
+            print("Minimum time bounce kick trajectory: optimization failed")
+
+        u_values = u_sol.vector_values(u_sol.get_segment_times())
+        return result.is_success(), u_values
+
+    # TODO: This does not work..
+    def min_time_bounce_kick_traj_dir_col(self, p0, v0, p0_puck, v0_puck, v_puck_desired):
         """generate minimum time trajectory while avoiding obs"""
         N = 15
+        minT = self.params.dt / N
+        maxT = 5.0 / N
         x0 = np.concatenate((p0, v0), axis=0)
-        xf = np.concatenate((pf, vf), axis=0)
-        prog = DirectCollocation(self.sys_c, self.sys_c.CreateDefaultContext(), N, minimum_timestep=self.params.dt, maximum_timestep=self.params.dt)
-        prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())     # initial states
-        #prog.AddBoundingBoxConstraint(xf, xf, prog.final_state())
-        
-        prog.AddEqualTimeIntervalsConstraints()   
-
+        prog = DirectCollocation(self.sys_c, self.sys_c.CreateDefaultContext(), num_time_samples=N,
+                                 minimum_timestep=minT,
+                                 maximum_timestep=maxT)
+        prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())
+        prog.AddEqualTimeIntervalsConstraints()
+        self.add_final_state_constraint_elastic_collision(prog, p0_puck, v0_puck, v_puck_desired)
         self.add_input_limits(prog)
         self.add_arena_limits(prog)
 
-        prog.AddQuadraticErrorCost(Q=10.0*np.eye(4), x_desired=xf, vars=prog.final_state())
+        # prog.AddQuadraticErrorCost(Q=10.0*np.eye(4), x_desired=xf, vars=prog.final_state())
+        pf = p0_puck - self.get_normalized_vector(v_puck_desired)*(self.params.puck_radius + self.params.player_radius)
+        prog.AddQuadraticErrorCost(Q=10.0*np.eye(2), x_desired=pf, vars=prog.final_state()[:2])
 
-        #initial_x_trajectory = PiecewisePolynomial.FirstOrderHold([0., 4.], np.column_stack((x0, xf)))  # yapf: disable
-        #prog.SetInitialTrajectory(PiecewisePolynomial(), initial_x_trajectory)
+        prog.AddFinalCost(prog.time())
 
-        #prog.AddFinalCost(prog.time())
         solver = SnoptSolver()
         result = solver.Solve(prog)
         if not result.is_success():
             print("Minimum time trajectory: optimization failed")
 
         u_trajectory = prog.ReconstructInputTrajectory(result)
-        u_values = u_trajectory.vector_values(u_trajectory.get_segment_times())
+        times = np.linspace(u_trajectory.start_time(), u_trajectory.end_time(), (u_trajectory.end_time() - u_trajectory.start_time()) / self.params.dt )
 
-        #T = u_trajectory.end_time() - u_trajectory.start_time()
-        #N_sol = int(T/self.params.dt)
-        #print(T)
-        #times = np.linspace(u_trajectory.start_time(), u_trajectory.end_time(), N_sol)
-        #print("u_trajectory.value", u_trajectory.value)
-        #u_lookup = np.vectorize(u_trajectory.value)
-        #print("u_lookup.shape", u_lookup.shape)
-        #u_values = u_lookup(times)
-        #print(times)
-        #u_values = u_trajectory.vector_values(times)
+        u_values = np.empty((2, len(times)))
+        for i, t in enumerate(times):
+            u_values[:, i] = u_trajectory.value(t).flatten()
+
+        return result.is_success(), u_values
+
+    def add_final_state_constraint_elastic_collision(self, prog, p0_puck, v0_puck, v_puck_desired):
+        m1 = self.params.player_mass
+        m2 = self.params.puck_mass
+        p1 = prog.final_state()[:2] # var: player's final position
+        p2 = p0_puck
+        v1 = prog.final_state()[2:] # var: player's final velocity
+        v2 = v0_puck
+
+        # Final position constraint
+        pf = p0_puck - self.get_normalized_vector(v_puck_desired)*(self.params.puck_radius + self.params.player_radius)
+        prog.AddConstraint(eq(p1, pf))
+
+        # Final velocity constraint
+        v_puck_after_collision = v2 - 2*m1/(m1+m2)*(v2-v1).dot(p2-pf)/(p2-pf).dot(p2-pf)*(p2-pf)    # perhaps not a nonlinear constraint, since dot product of v1 is required
+        prog.AddConstraint(eq(v_puck_after_collision, v_puck_desired))
+
+    def min_time_traj(self, p0, v0, pf, vf):
+        return self.min_time_traj_dir_col(p0, v0, pf, vf)
+
+    def min_time_traj_dir_col(self, p0, v0, pf, vf):
+        """generate minimum time trajectory while avoiding obs"""
+        N = 15
+        minT = self.params.dt / N
+        maxT = 5.0 / N
+        x0 = np.concatenate((p0, v0), axis=0)
+        xf = np.concatenate((pf, vf), axis=0)
+
+        prog = DirectCollocation(self.sys_c, self.sys_c.CreateDefaultContext(), num_time_samples=N,
+                                 minimum_timestep=minT,
+                                 maximum_timestep=maxT)
+        prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())
+        prog.AddEqualTimeIntervalsConstraints()
+        self.add_input_limits(prog)
+        self.add_arena_limits(prog)
+
+        prog.AddQuadraticErrorCost(Q=10.0*np.eye(4), x_desired=xf, vars=prog.final_state())
+        prog.AddFinalCost(prog.time())
+
+        solver = SnoptSolver()
+        result = solver.Solve(prog)
+        if not result.is_success():
+            print("Minimum time trajectory: optimization failed")
+
+        # subsample trajectory accordingly
+        u_trajectory = prog.ReconstructInputTrajectory(result)
+        duration = u_trajectory.end_time() - u_trajectory.start_time()
+        if duration > self.params.dt:
+            times = np.linspace(u_trajectory.start_time(), u_trajectory.end_time(), (u_trajectory.end_time() - u_trajectory.start_time()) / self.params.dt )
+        else:
+            times = np.array([0])
+
+        u_values = np.empty((2, len(times)))
+        for i, t in enumerate(times):
+            u_values[:, i] = u_trajectory.value(t).flatten()
 
         return result.is_success(), u_values
 
@@ -123,4 +187,7 @@ class LinearOptimizer:
         prog.AddConstraintToAllKnotPoints(prog.state()[0] - r >= -self.params.arena_limits_x/2.0)
         prog.AddConstraintToAllKnotPoints(prog.state()[1] + r <= self.params.arena_limits_y/2.0)
         prog.AddConstraintToAllKnotPoints(prog.state()[1] -r >= -self.params.arena_limits_y/2.0)
-    
+
+    def get_normalized_vector(self, v):
+        norm = np.linalg.norm(v)
+        return v / norm if norm > 0 else v

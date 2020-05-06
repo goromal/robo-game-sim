@@ -15,12 +15,16 @@ class GameParams:
         self.dt = 0.05
         self.player_radius = 0.2
         self.puck_radius = 0.175
-        self.tau_player=0.5 
-        self.input_limit=10.0 
+        self.tau_player=0.5
+        self.tau_puck = 0.1 # 0.1 was too difficult to bouncing off the wall and move to goal
+        self.player_mass = 1.0
+        self.puck_mass = 0.5
+        self.input_limit=10.0
         self.arena_limits_x=10.0 
-        self.arena_limits_y=5.0 
+        self.arena_limits_y=5.0
+        self.goal_height = 1.0
         self.winning_score = 4
-        self.x0_ball = np.array([0.,0.,0.,0.])
+        self.x0_ball = np.array([-1, 0.,0.,0.]) # np.array([0.,0.,0.,0.])
         self.log = True
         self.logname = "minimal_game.log"
 params = GameParams()
@@ -28,7 +32,7 @@ log = params.log
 logname = params.logname
 
 # Reset sim (this can be done an arbitrary number of times)
-sim.reset(params.dt, params.winning_score, params.x0_ball, params.log, params.logname)
+sim.reset(params.dt, params.winning_score, params.x0_ball, 0, params.log, params.logname)
 sim_state = SimState(sim.run(np.zeros(2), np.zeros(2), np.zeros(2), np.zeros(2)))
 
 # Create two teams

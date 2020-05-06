@@ -1,5 +1,6 @@
 import numpy as np
 from src.LinearOptimizer import LinearOptimizer
+from src.ContactOptimizer import ContactOptimizer
 from src.NonLinearOptimizer import NonLinearOptimizer
 
 class ClassicalPlayer:
@@ -16,16 +17,17 @@ class ClassicalPlayer:
 
         # Optimizers
         self.linear_optimizer = LinearOptimizer(self.params)
+        self.contact_optimizer = ContactOptimizer(self.params)
         self.miqp_optimizer = NonLinearOptimizer(self.params)
 
-    # Return latest control action and 
+    # Return latest control action and
     # percentage of completion of current action.
-    # Has to be called at 1/dt rate. 
+    # Has to be called at 1/dt rate.
     def get_control(self):
 
         percentage_completed = self.task_percentage_completed() # 1.0 when current trajectory is completed
-        
-        if percentage_completed <= 1.0: 
+
+        if percentage_completed <= 1.0:
             u_cmd = self.u_traj[:, self.t_idx]
             self.t_idx += 1
             return u_cmd, percentage_completed
@@ -35,16 +37,6 @@ class ClassicalPlayer:
         self.idle()
         return self.u_traj[:,self.t_idx], 1.0
 
-    # Check if player is free or busy executing some long open-loop actions
-    def is_idle(self):
-        if self.task_percentage_completed() >= 1.0:
-            return True
-        else :
-            return False
-        
-    # percentage of task completion 
-    def task_percentage_completed(self):
-        return (self.t_idx+1)/len(self.u_traj[0,:]) # > 1.0 when current trajectory is completed
 
     ###########################################################################
     ### All the methods below here generate a trajectory (of length one or more)
@@ -52,8 +44,9 @@ class ClassicalPlayer:
     ###########################################################################
 
     # Generate trajectory and stores it in the class state
-    # Returns if optimization was successfull or not
+    # Returns if optimization was successful or not
     def timed_kick(self, state, kick_velocity, time_to_kick):
+        """Kick the puck towards the goal with the specified speed within the given time."""
         p_puck = state.get_puck_pos()
         p_goal = self.get_adversary_goal_pos()
 
@@ -63,40 +56,38 @@ class ClassicalPlayer:
         T = time_to_kick
   
         # Store trajectory and reset execution timer
-        successfull, self.u_traj = self.linear_optimizer.intercepting_traj(p0, v0, pf, vf, T)
+        successful, self.u_traj = self.linear_optimizer.intercepting_traj(p0, v0, pf, vf, T)
+        self.t_idx = 0
+
+        return successful
 
 
     def timed_kick_avoiding_obs(self, state, kick_velocity, time_to_kick):
-        """finite-time kick while avoiding other players and puck"""
+        """Finite-time kick while avoiding other players and puck"""
         p_puck = state.get_puck_pos()
         p_goal = self.get_adversary_goal_pos()
 
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
         pf, vf = self.get_final_state_for_kick(p_goal, p_puck, kick_velocity)
-        T = time_to_kick
 
         # define obstacles to avoid:
         other_players = self.get_pos_of_other_players(state)
 
-        successfull, self.u_traj = self.miqp_optimizer.intercepting_with_obs_avoidance(p0, v0, pf, vf, time_to_kick, other_players, p_puck)
-        #successfull, self.u_traj = self.miqp_optimizer.intercepting_with_obs_avoidance_bb(p0, v0, pf, vf, time_to_kick, other_players, p_puck)
+        successful, self.u_traj = self.miqp_optimizer.intercepting_with_obs_avoidance(p0, v0, pf, vf, time_to_kick, other_players, p_puck)
+        #successful, self.u_traj = self.miqp_optimizer.intercepting_with_obs_avoidance_bb(p0, v0, pf, vf, time_to_kick, other_players, p_puck)
         self.t_idx = 0
 
-        return successfull
-        
+        return successful
     
-    # player stays where it is
     def idle(self):
-
+        """player stays where it is"""
         self.u_traj = np.zeros((2, 1))
         self.t_idx = 0
 
         # return successfully generated
         return True
 
-    # TODO tries to reach and hit the ball in minimum time
-    # with maximum possible final velocity
     def simple_kick(self, state, kick_velocity):
         """Minimum time trajectory with desired final velocity pointing towards goal"""
         p_puck = state.get_puck_pos()
@@ -107,10 +98,12 @@ class ClassicalPlayer:
         pf, vf = self.get_final_state_for_kick(p_goal, p_puck, kick_velocity)
 
         # Store trajectory and reset execution timer
-        successfull, self.u_traj = self.linear_optimizer.min_time_traj(p0, v0, pf, vf)
-        self.t_idx = 0
+        successful, u_traj = self.linear_optimizer.min_time_traj(p0, v0, pf, vf)
+        if successful and (len(u_traj) is not 0):
+            self.u_traj = u_traj
+            self.t_idx = 0
 
-        return successfull
+        return successful
     
     def simple_kick_avoiding_obs(self, state, kick_velocity):
         """Minimum time trajectory with desired final velocity pointing towards goal while avoiding obstacle"""
@@ -125,40 +118,117 @@ class ClassicalPlayer:
         other_players = self.get_pos_of_other_players(state)
 
         # Store trajectory and reset execution timer
-        successfull, self.u_traj = self.miqp_optimizer.min_time_traj_avoid_obs(p0, v0, pf, vf, other_players, p_puck)
-        self.t_idx = 0
+        successful, u_traj = self.miqp_optimizer.min_time_traj_avoid_obs(p0, v0, pf, vf, other_players, p_puck)
 
-        return successfull
+        if successful and (len(u_traj) is not 0):
+            self.u_traj = u_traj
+            self.t_idx = 0
 
-    # TODO stays in front of the goal trying to intercept the ball
-    def defend(self, state):
+        return successful
+
+    def bounce_kick(self, state, which_wall):
+        """Kick the puck to the specified wall and bounce to adversary's goal. Require that tau_puck >= 1."""
+        puck_pos = state.get_puck_pos()
+        p_goal = self.get_adversary_goal_pos()
+        successful, v_puck_desired = self.contact_optimizer.bounce_pass_wall(puck_pos, p_goal, which_wall)
+        if successful:
+            p0 = state.get_player_pos(self.team, self.player_id)
+            v0 = state.get_player_vel(self.team, self.player_id)
+            p0_puck = state.get_puck_pos()
+            v0_puck = state.get_puck_vel()
+            successful, u_traj = self.linear_optimizer.min_time_bounce_kick_traj(p0, v0, p0_puck, v0_puck, v_puck_desired)
+            # successful, self.u_traj = self.linear_optimizer.min_time_bounce_kick_traj_dir_col(p0, v0, p0_puck, v0_puck, v_puck_desired) # Not working
+
+            if successful:
+                self.u_traj = u_traj
+                self.t_idx = 0
+                # print("min_time_bounce_kick_traj optimization succeeded.")
+
+        return successful
+
+    def defend_kick(self, state, kick_vel):
+        """Kick the ball in opponent's open field"""
+        p_puck = state.get_puck_pos()
 
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
 
-        #pf_y = state.get_puck_pos()[1]
-        pf_y = state.get_player_pos(self.get_adversary_team(), 1)[1]
-        defense_line = 0.3
-        pf_x = 0.0
+        # get opponents' positions
+        opp_pos1 = state.get_player_pos(self.get_adversary_team(), 1)
+        opp_pos2 = state.get_player_pos(self.get_adversary_team(), 2)
+        shoot_direction = self.get_normalized_vector([ -self.field, np.sign(opp_pos1[1] + opp_pos2[1])])
+
+        vf = shoot_direction * kick_vel
+        pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius)
+
+        # Store trajectory and reset execution timer
+        successful, u_traj = self.linear_optimizer.min_time_traj(p0, v0, pf, vf)
+        if successful and (len(u_traj) is not 0):
+            self.u_traj = u_traj
+            self.t_idx = 0
+
+        return successful
+
+    def defend(self, state):
+        """Stay in between puck and home goal, within the goalie region."""
+        p0 = state.get_player_pos(self.team, self.player_id)
+        v0 = state.get_player_vel(self.team, self.player_id)
+
+        defense_line_x_min = 0.3
+        defense_line_x_max = 0.7
+        pf = self.get_home_goal_pos() + 0.5* (state.get_puck_pos() - self.get_home_goal_pos())
+
+        # Threshold where the goalie can be
         if self.field > 0:
-            pf_x = self.params.arena_limits_x/2.0 - defense_line
+            pf[0] = min(pf[0], self.params.arena_limits_x/2.0 - defense_line_x_min)
+            pf[0] = max(pf[0], self.params.arena_limits_x/2.0 - defense_line_x_max)
         else:
-            pf_x = -self.params.arena_limits_x/2.0 + defense_line
+            pf[0] = max(pf[0], -self.params.arena_limits_x/2.0 + defense_line_x_min)
+            pf[0] = min(pf[0], -self.params.arena_limits_x/2.0 + defense_line_x_max)
 
-        successfull, self.u_traj = self.linear_optimizer.min_time_traj(p0, v0, np.array([pf_x, pf_y]), np.zeros(2))
-        self.t_idx = 0
+        pf[1] = max(pf[1], -self.params.goal_height/2.0)
+        pf[1] = min(pf[1], self.params.goal_height/2.0)
 
-        return successfull
 
-    # where the ball should be kicked
+        successful, u_traj = self.linear_optimizer.min_time_traj(p0, v0, pf, np.zeros(2))
+        if successful:
+            self.u_traj = u_traj
+            self.t_idx = 0
+
+        return successful
+
+    ###########################################################################
+    ### Helper functions
+    ###########################################################################
+
+
+    # Check if player is free or busy executing some long open-loop actions
+    def is_idle(self):
+        if self.task_percentage_completed() >= 1.0:
+            return True
+        else :
+            return False
+
+    # percentage of task completion
+    def task_percentage_completed(self):
+        return (self.t_idx+1)/len(self.u_traj[0,:]) # > 1.0 when current trajectory is completed
+
     def get_adversary_goal_pos(self):
-        # TODO: define game parameter class and pass it around
+        """Where the goal should be kicked."""
         if self.field > 0:
             return np.array([-self.params.arena_limits_x/2.0, 0.0])
         else :
             return np.array([self.params.arena_limits_x/2.0, 0.0])
 
+    def get_home_goal_pos(self):
+        """Where the goal should be kicked."""
+        if self.field < 0:
+            return np.array([-self.params.arena_limits_x/2.0, 0.0])
+        else :
+            return np.array([self.params.arena_limits_x/2.0, 0.0])
+
     def get_final_state_for_kick(self, p_goal, p_puck, kick_velocity):
+        """Get desired final position and velocity for the player to shoot the goal."""
         shoot_direction = self.get_shoot_direction(p_goal, p_puck)
         pf = p_puck - shoot_direction*(self.params.puck_radius + self.params.player_radius)
         vf = kick_velocity*shoot_direction
@@ -172,6 +242,7 @@ class ClassicalPlayer:
         return shoot_direction
 
     def get_pos_of_other_players(self, state):
+        """Get positions of all other players."""
         positions = list()
         positions.append(state.get_player_pos(self.team, self.get_teammate_id()))
         positions.append(state.get_player_pos(self.get_adversary_team(), 1))
@@ -196,6 +267,8 @@ class ClassicalPlayer:
         else:
             raise Exception("self.player_id not recognizer! player_id can ether be 1 or 2")
 
-
-
+    def get_normalized_vector(self, v):
+        """Get normalized vector."""
+        norm = np.linalg.norm(v)
+        return v / norm if norm > 0 else v
 
