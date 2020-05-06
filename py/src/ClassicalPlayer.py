@@ -37,16 +37,6 @@ class ClassicalPlayer:
         self.idle()
         return self.u_traj[:,self.t_idx], 1.0
 
-    # Check if player is free or busy executing some long open-loop actions
-    def is_idle(self):
-        if self.task_percentage_completed() >= 1.0:
-            return True
-        else :
-            return False
-        
-    # percentage of task completion 
-    def task_percentage_completed(self):
-        return (self.t_idx+1)/len(self.u_traj[0,:]) # > 1.0 when current trajectory is completed
 
     ###########################################################################
     ### All the methods below here generate a trajectory (of length one or more)
@@ -80,7 +70,6 @@ class ClassicalPlayer:
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
         pf, vf = self.get_final_state_for_kick(p_goal, p_puck, kick_velocity)
-        T = time_to_kick
 
         # define obstacles to avoid:
         other_players = self.get_pos_of_other_players(state)
@@ -211,6 +200,18 @@ class ClassicalPlayer:
     ###########################################################################
     ### Helper functions
     ###########################################################################
+
+
+    # Check if player is free or busy executing some long open-loop actions
+    def is_idle(self):
+        if self.task_percentage_completed() >= 1.0:
+            return True
+        else :
+            return False
+
+    # percentage of task completion
+    def task_percentage_completed(self):
+        return (self.t_idx+1)/len(self.u_traj[0,:]) # > 1.0 when current trajectory is completed
 
     def get_adversary_goal_pos(self):
         """Where the goal should be kicked."""

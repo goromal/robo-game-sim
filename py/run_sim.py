@@ -11,12 +11,12 @@ sim = GameSim()
 # Sim parameters
 class GameParams:
     def __init__(self):
-        self.T = 5.0 # seconds, max total time
+        self.T = 20.0 # seconds, max total time
         self.dt = 0.05
         self.player_radius = 0.2
         self.puck_radius = 0.175
         self.tau_player=0.5
-        self.tau_puck = 1.0 # 0.1 was too difficult to bouncing off the wall and move to goal
+        self.tau_puck = 0.1 # 0.1 was too difficult to bouncing off the wall and move to goal
         self.player_mass = 1.0
         self.puck_mass = 0.5
         self.input_limit=10.0
