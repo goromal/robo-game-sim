@@ -23,6 +23,7 @@ class GameParams:
         self.winning_score = 4
         self.puck_mass = 0.5
         self.player_mass = 1.0
+        self.w_stdev = 0.0 # standard deviation of zero-mean gaussian noise on dynamics inputs
         self.x0_ball = np.array([0.,0.,0.,0.])
         self.log = True
         self.logname = "minimal_game.log"
@@ -31,7 +32,7 @@ log = params.log
 logname = params.logname
 
 # Reset sim (this can be done an arbitrary number of times)
-sim.reset(params.dt, params.winning_score, params.x0_ball, params.log, params.logname)
+sim.reset(params.dt, params.winning_score, params.x0_ball, params.w_stdev, params.log, params.logname)
 sim_state = SimState(sim.run(np.zeros(2), np.zeros(2), np.zeros(2), np.zeros(2)))
 
 # Create two teams
