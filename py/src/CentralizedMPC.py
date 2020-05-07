@@ -14,7 +14,7 @@ class CentralizedMPC():
         self.prev_u = None
         self.prev_x = None
 
-    def compute_control(self, x0_p1, x0_p2, xf_p1, xf_p2, x_puck, obstacles):
+    def compute_control(self, x0_p1, x0_p2, xf_p1, xf_p2, obstacles):
         """This is basically the single-agent MPC algorithm"""
         prog = DirectCollocation(self.mpc_params.sys_two_players_c, self.mpc_params.sys_two_players_c.CreateDefaultContext(), self.mpc_params.N+1,
                     minimum_timestep=self.mpc_params.minT, maximum_timestep=self.mpc_params.maxT)

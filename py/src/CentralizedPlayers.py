@@ -39,31 +39,62 @@ class MpcParams():
         self.Omega_N_max = np.array([[10.0,  0.0,  0.0,  0.0],[ 0.0, 10.0,  0.0,  0.0],[ 0.0,  0.0, 20.0,  0.0],[ 0.0,  0.0,  0.0, 20.0]])
         #self.Q_puck[2:4, 2:4] = np.zeros((2,2))
 
+# Code from Andrew
+class BaselineCentralizedPlayers(object):
+    # play types
+    OFFENSE = 0
+    DEFENSE = 1
+    # player types
 
-class CentralizedPlayers():
-
-    def __init__(self, params, field, team):
+    def __init__(self, sim_params, field, player_id):
         # player parameters
-        self.sim_params = params
-        self.mpc_params = MpcParams(params)
+        self.params = sim_params
+        self.v_hit = 5.0
+        # field tells which side of the arena the player defends -1 left, +1 right
+        self.home_pos =  field * np.array([self.params.arena_limits_x/2.0, 0.0])
+        self.goal_pos = -field * np.array([self.params.arena_limits_x/2.0, 0.0])
+        if field < 0: self.this_team = "A"
+        else: self.this_team = "B"
+        self.player_id = player_id # 1 or 2; 1 plays more offense, 2 plays more defense
         self.field = field
-        self.team = team
-        self.player_1_id = 1 # Contains and controls both the players
-        self.player_2_id = 2
+        self.attacker_id = 1 # Contains and controls both the players
+        self.defender_id = 2
+        self.mpc_params = MpcParams(self.params)
 
         # controller
-        self.controller = CentralizedMPC(self.sim_params, self.mpc_params)
+        self.controller = CentralizedMPC(self.params, self.mpc_params)
 
-    def attack(self, state):
-        """compute control action for player1 and 2 to send the puck in the goal"""
-        x0_p1 = state.get_player_state(self.team, self.player_1_id)
-        x0_p2 = state.get_player_state(self.team, self.player_2_id)
-        xf_p1 = np.zeros(4)
-        xf_p2 = np.zeros(4)
-        x_puck = state.get_puck_state()
-        x_goal = self.get_adversary_goal_pos()
+    def get_action(self, play, state):
+        x_des = np.zeros((4,1))
+        puck_pos = state.get_puck_pos()
+
+        if   play == BaselineCentralizedPlayers.OFFENSE:
+            # Get to puck wherever it is and hit it towards the goal!
+            hit_dir = self.goal_pos - puck_pos
+            hit_dir = self.v_hit * hit_dir / np.linalg.norm(hit_dir)
+            x_des_attack = np.array([puck_pos[0], puck_pos[1], hit_dir[0], hit_dir[1]])
+            # If puck is within range, hit towards goal! Else defend.
+            if self.field * puck_pos[0] > 0:
+                def_pos = self.home_pos + (puck_pos - self.home_pos) / 2.0
+                x_des_defend = np.array([def_pos[0], def_pos[1], 0., 0.])
+            else:
+                hit_dir = self.goal_pos - puck_pos
+                hit_dir = self.v_hit * hit_dir / np.linalg.norm(hit_dir)
+                x_des_defend = np.array([puck_pos[0], puck_pos[1], hit_dir[0], hit_dir[1]])
+
+        elif play == BaselineCentralizedPlayers.DEFENSE:
+            # Deflect puck trajectory in any way possible to return to offense
+            hit_dir = self.goal_pos - puck_pos
+            hit_dir = 2 * self.v_hit * hit_dir / np.linalg.norm(hit_dir)
+            x_des_attack = np.array([puck_pos[0], puck_pos[1], hit_dir[0], hit_dir[1]])
+            # Get between the puck and the home goal
+            def_pos = self.home_pos + (puck_pos - self.home_pos) / 2.0
+            x_des_defend = np.array([def_pos[0], def_pos[1], 0., 0.])
+        
+        x0_attacker = state.get_player_state(self.this_team, self.attacker_id)
+        x0_defender = state.get_player_state(self.this_team, self.defender_id)
         obstacles = self.get_pos_of_other_players(state)
-        converged, cmd1, cmd2 = self.controller.compute_control(x0_p1, x0_p2, xf_p1, xf_p2, x_puck, obstacles)
+        _, cmd1, cmd2 = self.controller.compute_control(x0_attacker, x0_defender, x_des_attack, x_des_defend, obstacles)
         return cmd1, cmd2
 
     # Where the ball should be kicked
@@ -84,9 +115,9 @@ class CentralizedPlayers():
     # Note: code duplicated from classical player :(
     def get_adversary_team(self):
         """Returns the team adversary to the player's team"""
-        if self.team == "A":
+        if self.this_team == "A":
             return "B"
-        elif self.team == "B":
+        elif self.this_team == "B":
             return "A"
         else:
             raise Exception("Team not recognized! Team can either be \"A\" or \"B\"")
