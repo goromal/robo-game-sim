@@ -2,6 +2,7 @@
 #include <Eigen/Core>
 #include "utils.h"
 #include <vector>
+#include <map>
 
 enum {PX = 0, PY = 1, VX = 2, VY = 3};
 enum {TEAM_A = 0, TEAM_B = 1};
