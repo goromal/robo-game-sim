@@ -6,6 +6,7 @@
 #define COLLISION_GRID_POINTS 50
 #define COLLISION_COUNTER_LIM 50
 #define MAX_CONCURRENT_COLLS  10
+#define OVERLAP_BUFFER        1.1
 
 enum {NO_SCORE, TEAM_A_SCORE, TEAM_B_SCORE};
 
@@ -37,7 +38,8 @@ private:
     Vector4d gridSimAgnostic(const int &id, const int &idx, const double &dt);
     Vector4d simAgnostic(const int &id, const Vector4d &x, const Vector2d &u, const double &dt);
     int GStoSSIdx(const int &GS_idx);
-    void correctOverlap(const int &i, const int &j, const int &idx, const double &r_i, const double &r_j);
+    bool correctOverlap(const int &i, const int &j, const int &idx, const double &r_i, const double &r_j);
+    bool correctOverlap(const int &i, const int &idx, const double &r_i, const int &WALL_TYPE);
 
     Matrix<double, 35, COLLISION_GRID_POINTS + 1> state_grid_;
     std::vector<Collision> collisions_;
