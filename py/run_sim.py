@@ -12,7 +12,7 @@ sim = GameSim()
 # Sim parameters
 class GameParams:
     def __init__(self):
-        self.T = 50.0 # seconds, max total time
+        self.T = 10.0 # seconds, max total time
         self.dt = 0.05
         self.player_radius = 0.2
         self.puck_radius = 0.175
@@ -31,8 +31,9 @@ class GameParams:
         self.gamma = 1.
 
         # CBF parameters.
-        self.safety_radius = 2*self.player_radius
-        self.barrier_gain = 20
+        self.safety_radius = 2 * self.player_radius
+        self.barrier_gain = 30  # the higher, the faster robots can approach each other
+
 params = GameParams()
 log = params.log
 logname = params.logname
@@ -69,7 +70,7 @@ while t < params.T:
 
     # run the simulator, returns vector with all sim info
     sim_state = SimState(sim.run(velA1, velA2, velB1, velB2))
-    # print(sim_state.transpose())
+    print(sim_state.transpose())
 
     t += params.dt
 
