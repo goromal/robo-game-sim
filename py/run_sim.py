@@ -29,8 +29,10 @@ class GameParams:
         self.log = True
         self.logname = "minimal_game.log"
         self.gamma = 1.
+
+        # CBF parameters.
         self.safety_radius = 2*self.player_radius
-        self.barrier_gain = 0.1
+        self.barrier_gain = 20
 params = GameParams()
 log = params.log
 logname = params.logname
@@ -63,17 +65,7 @@ while t < params.T:
 
     # Centralized safety controller
     u_nominal = [velA1, velA2, velB1, velB2]
-    velocities = [sim_state.get_player_vel("A", 1),
-                  sim_state.get_player_vel("A", 2),
-                  sim_state.get_player_vel("B", 1),
-                  sim_state.get_player_vel("B", 2)
-                  ]
-    positions = [sim_state.get_player_pos("A", 1),
-                  sim_state.get_player_pos("A", 2),
-                  sim_state.get_player_pos("B", 1),
-                  sim_state.get_player_pos("B", 2)
-                  ]
-    velA1, velA2, velB1, velB2 = centralized_CBF.get_centralized_safe_control(u_nominal, velocities, positions)
+    velA1, velA2, velB1, velB2 = centralized_CBF.get_centralized_safe_control_damped_double_integrator(u_nominal, sim_state)
 
     # run the simulator, returns vector with all sim info
     sim_state = SimState(sim.run(velA1, velA2, velB1, velB2))

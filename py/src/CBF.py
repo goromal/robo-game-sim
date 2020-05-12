@@ -5,53 +5,127 @@ import matplotlib.pyplot as plt
 from pydrake.all import eq, MathematicalProgram, Solve, Variable, LinearSystem, DirectTranscription, DirectCollocation, PiecewisePolynomial, SnoptSolver
 
 class CBF:
-    def __init__(self, params, safety_radius, barrier_gain):
-        # initialize game parameters and system dyanmics
-        self.params = params
+    """
+    Collision avoidance using centralized control barrier functions. Control inputs are minimally modified such that
+    robots are guaranteed to avoid collisions with each other.
+
+    The following system dynamics have been incorporated into barrier functions, so do not appear individually:
         self.A_c = np.array([[0, 0, 1, 0], [0, 0, 0, 1], [0, 0, -1.0/self.params.tau_player, 0], [0, 0, 0, -1.0/self.params.tau_player]])
         self.B_c = np.array([[0, 0], [0, 0], [1.0/self.params.tau_player, 0], [0, 1.0/self.params.tau_player]])
         self.C = np.eye(4)
         self.D = np.zeros((4,2))
 
+    Parameters:
+        barrier_gain > 0. The lower it is, the slower each player is allowed to approach each other.
+        safety_radius > 0. The safety radius for each player, e.g., 2 * player_radius.
+    """
+
+    def __init__(self, params, safety_radius, barrier_gain):
+
+        # initialize game parameters and system dyanmics
+        self.params = params
+
         # initialize CBF related params
-        assert(safety_radius > self.params.player_radius)
-        assert(barrier_gain > 0)
+        assert safety_radius > 2*self.params.player_radius, "Safety radius must be greater than twice the player radius."
+        assert barrier_gain > 0, "Barrier gain must be greater than 0."
         self.safety_radius = safety_radius
-        self.barrier_gain = barrier_gain # lower = slower
+        self.barrier_gain = barrier_gain
 
 
-    def get_centralized_safe_control(self, u_nominal, velocities, positions):
+    def get_centralized_safe_control_damped_double_integrator(self, u_nominal, sim_state, debug=False):
+        """Minimally modify the nomial control inputs, such that robots are guaranteed to avoid collisions."""
+
+        positions, velocities = self.get_all_positions_and_velocities(sim_state)
+        N = len(positions)
+
         prog = MathematicalProgram()
+        u_to_solve = [prog.NewContinuousVariables(2, name='u_{}'.format(idx)) for idx in range(N)]
 
-        N = len(velocities)
+        # check pair-wise collisions
+        for i in range(N):
+            for j in range(N):
+                if j is not i:
 
+                    pij = positions[i] - positions[j]           # relative position
+                    vij = velocities[i] -velocities[j]          # relative velocity
+                    pij_norm = np.linalg.norm(pij)              # norm of relative position
+                    pij_unit = self.get_normalized_vector(pij)  # normalized relative position
+                    vcol = pij_unit.dot(vij)                    # the relative velocity that leads to collision
+
+                    # if the robots are moving towards each other, add CBF constraint
+                    if vcol < 0:
+
+                        tau = self.params.tau_player
+                        a_rel_max = 2 * self.params.input_limit
+                        Ds = self.params.safety_radius
+
+                        uij = u_to_solve[i] - u_to_solve[j]
+
+                        # compute hij_dot
+                        exp_factor = np.exp((pij_norm + tau*vcol-Ds)/(tau*a_rel_max))
+                        vij2_m_vcol2 = vij.dot(vij)-vcol**2
+                        hij_dot = exp_factor * ( -vij2_m_vcol2/pij_norm +
+                                                 (a_rel_max-vcol)/(tau*a_rel_max)*(vcol+tau/pij_norm*vij2_m_vcol2)  +
+                                                 vcol/(tau*a_rel_max)*(vcol-pij_unit.dot(uij)))
+
+                        # compute hij
+                        hij = (a_rel_max-vcol) * exp_factor - a_rel_max
+
+                        # add CBF constraint that is linear in uij
+                        prog.AddConstraint(hij_dot >= -self.alpha(hij))
+
+        # add input limits
+        self.add_input_limits(prog, u_to_solve)
+
+        # minimally changing the nomial control
+        u_diff = np.concatenate(u_nominal) - np.concatenate(u_to_solve)
+        prog.AddCost(u_diff.dot(u_diff))
+
+        # solve the QP and return the safe controls
+        result = Solve(prog)
+
+        if result.is_success():
+            if debug:
+                print("Nominal controls: {}".format(u_nominal))
+                print("Safe controls: {}".format(result.GetSolution(u_to_solve)))
+            return result.GetSolution(u_to_solve)
+        else:
+            print("CBF collision avoidance failed. Return nomial inputs.")
+            return u_nominal
+
+    def get_centralized_safe_control_double_integrator(self, u_nominal, sim_state, debug=False):
+        """DO NOT USE.
+        CBF formulation for double integrators based on https://ames.gatech.edu/ADHS15_Swarm_Barrier.pdf.
+        However, this does not apply for our dynamics. """
+
+        positions, velocities = self.get_all_positions_and_velocities(sim_state)
+        N = len(positions)
+
+        prog = MathematicalProgram()
         u_to_solve = [prog.NewContinuousVariables(2, name='u_{}'.format(idx)) for idx in range(len(u_nominal))]
 
+        # check pair-wise collisions
         for i in range(N):
             for j in range(N):
                 if i is not j:
                     pij = positions[i] - positions[j]
                     vij = velocities[i] -velocities[j]
 
-                    dxi = self.A_c.dot(np.concatenate((positions[i],velocities[i]), axis=0)) \
-                          + self.B_c.dot(u_to_solve[i])
-
-                    dxj = self.A_c.dot(np.concatenate((positions[j],velocities[j]), axis=0)) \
-                          + self.B_c.dot(u_to_solve[j])
-
                     # if the robots are moving towards each other, add CBF constraint
                     if pij.dot(vij)/np.linalg.norm(pij) < 0:
-                        # prog.AddConstraint(self.dhdx(pij, vij).dot(dxi) >= -self.alpha(self.h(pij, vij)))
-                        # prog.AddConstraint(self.dhdx(pij, vij).dot(-dxj) >= -self.alpha(self.h(pij, vij)))
 
                         pij_norm = np.linalg.norm(pij)
                         vij_norm = np.linalg.norm(vij)
                         a_max = self.params.input_limit
                         delta_a_max = 2*a_max
-                        hij = pij.dot(vij)/np.linalg.norm(pij) + np.sqrt(max(0, 2*delta_a_max*(np.linalg.norm(pij)-self.safety_radius))) # use max to sqrt of negative values
+
+                        # use max to sqrt of negative values
+                        hij = pij.dot(vij)/np.linalg.norm(pij) + \
+                              np.sqrt(max(0, 2*delta_a_max*(np.linalg.norm(pij)-self.safety_radius)))
                         Bij = 1/hij
 
                         try:
+                            # add CBF constraint that is linear in uij
                             prog.AddConstraint(-pij.dot(u_to_solve[i]-u_to_solve[j]) <=
                                                self.params.gamma/Bij * hij**2 *pij_norm -
                                                (vij.dot(pij))**2 / pij_norm**2 +
@@ -60,118 +134,50 @@ class CBF:
                             print("Cannot add constraint..")
 
 
-        # Add input limits
-        for u in u_to_solve:
-            prog.AddConstraint(u[0] <= self.params.input_limit)
-            prog.AddConstraint(u[1] <= self.params.input_limit)
-            prog.AddConstraint(u[0] >= -self.params.input_limit)
-            prog.AddConstraint(u[1] >= -self.params.input_limit)
+        # add input limits
+        self.add_input_limits(prog, u_to_solve)
 
-
-        # Minimally changing the nomial control
+        # minimally changing the nomial control
         u_diff = np.concatenate(u_nominal) - np.concatenate(u_to_solve)
         prog.AddCost(u_diff.dot(u_diff))
 
+        # solve the QP and return the safe controls
         result = Solve(prog)
 
-        # TODO: get the new output..
         if result.is_success():
-            print("Nominal controls: {}".format(u_nominal))
-            print("Safe controls: {}".format(result.GetSolution(u_to_solve)))
+            if debug:
+                print("Nominal controls: {}".format(u_nominal))
+                print("Safe controls: {}".format(result.GetSolution(u_to_solve)))
             return result.GetSolution(u_to_solve)
         else:
-            print("failed")
+            print("CBF collision avoidance failed. Return nomial inputs.")
             return u_nominal
 
-    def get_safe_control(self, u_nominal, velocities, positions, indices_to_solve):
-        # velocities: list of every players velocities
-        # positions: every players positions
-        # indices_to_solve: indices of the players to return the safe control for, e.g., [0, 2]
+    def get_all_positions_and_velocities(self, sim_state):
+        """Return all players' positions and velocities."""
+        positions = [sim_state.get_player_pos("A", 1),
+                     sim_state.get_player_pos("A", 2),
+                     sim_state.get_player_pos("B", 1),
+                     sim_state.get_player_pos("B", 2)
+                     ]
+        velocities = [sim_state.get_player_vel("A", 1),
+                      sim_state.get_player_vel("A", 2),
+                      sim_state.get_player_vel("B", 1),
+                      sim_state.get_player_vel("B", 2)
+                      ]
+        return positions, velocities
 
-        prog = MathematicalProgram()
+    def alpha(self, h):
+        """Extended class-K infinity functions. For instance, alpha(h)=h, alpha(h)=h**3."""
+        return self.barrier_gain * h**3
 
-        N = len(velocities)
-
-        # TODO: initialize control variables to solve for
-        u_to_solve = [prog.NewContinuousVariables(2, name='u_{}'.format(idx)) for idx in indices_to_solve]
-
-        for i in indices_to_solve:
-            for j in range(N):
-                if j is not i:
-                    pij = positions[i] - positions[j]
-                    vij = velocities[i] -velocities[j]
-
-                    dxi = self.A_c.dot(np.concatenate((positions[i],velocities[i]), axis=0))\
-                          + self.B_c.dot(u_to_solve[i])
-
-                    # if the robots are moving towards each other, add CBF constraint
-                    if pij.dot(vij)/np.linalg.norm(pij) < 0:
-                        prog.AddConstraint(self.dhdx(pij, vij).dot(dxi) >= -self.alpha(self.h(pij, vij)))
-
-                        # a_max = np.abs(self.get_normalized_vector(pij).dot(self.get_normalized_vector(vij)) * self.params.input_limit)
-                        # delta_a_max = 2*a_max
-                        # hij = pij.dot(vij)/np.linalg.norm(pij) + np.sqrt(2*delta_a_max*(np.linalg.norm(pij)-self.safety_radius))
-                        # Bij = 1/hij
-                        # prog.AddConstraint(-pij.dot())
-
-
-        # Add input limits
-        for u in u_to_solve:
+    def add_input_limits(self, prog, all_inputs):
+        """Add input limits to every input."""
+        for u in all_inputs:
             prog.AddConstraint(u[0] <= self.params.input_limit)
             prog.AddConstraint(u[1] <= self.params.input_limit)
             prog.AddConstraint(u[0] >= -self.params.input_limit)
             prog.AddConstraint(u[1] >= -self.params.input_limit)
-
-
-         # Minimally changing the nomial control
-        u_diff = np.concatenate(u_nominal) - np.concatenate(u_to_solve)
-        prog.AddCost(u_diff.dot(u_diff))
-
-        result = Solve(prog)
-
-        # TODO: get the new output..
-        if result.is_success():
-            print("Nominal controls: {}".format(u_nominal))
-            print("Safe controls: {}".format(result.GetSolution(u_to_solve)))
-            return result.GetSolution(u_to_solve[0]), result.GetSolution(u_to_solve[1])
-        else:
-            print("failed")
-            return np.zeros(2), np.zeros(2)
-
-
-
-
-    def h(self, pij, vij):
-        v_normal = pij.dot(vij)/np.linalg.norm(pij)
-        a_max = self.params.input_limit
-        # a_max = np.abs(self.get_normalized_vector(pij).dot(self.get_normalized_vector(vij)) * self.params.input_limit)
-        tau = self.params.tau_player
-        Tb = tau * np.log(1+v_normal/(2*a_max))
-        pij_norm = np.linalg.norm(pij)
-
-        dist_when_stopped =  pij_norm + tau*(1-np.exp(-Tb/tau)) *v_normal \
-                             + 2*a_max*(tau-tau*np.exp(-Tb/tau)-Tb)
-
-
-        return dist_when_stopped - self.safety_radius
-
-    def dhdx(self, pij, vij):
-        v_normal = pij.dot(vij)/np.linalg.norm(pij)
-        a_max = self.params.input_limit
-        # a_max = np.abs(self.get_normalized_vector(pij).dot(self.get_normalized_vector(vij)) * self.params.input_limit)
-        tau = self.params.tau_player
-        Tb = tau * np.log(1+v_normal/(2*a_max))
-        pij_norm = np.linalg.norm(pij)
-        I = np.eye(2)
-
-        dhdp = pij/pij_norm + tau*(1-np.exp(-Tb/tau)) * np.matmul(I/pij_norm - np.outer(pij, pij)/(pij_norm**3), vij)
-        dhdv = tau*(1-np.exp(-Tb/tau))/pij_norm*pij
-
-        return np.concatenate((dhdp, dhdv), axis=0)
-
-    def alpha(self, h):
-        # return self.barrier_gain * h
-        return self.barrier_gain * h**3
 
     def get_normalized_vector(self, v):
         """Get normalized vector."""
