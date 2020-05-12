@@ -47,8 +47,8 @@ class ClassicalTeam:
 
 
     def evaluateGame(self, state):
-        # Defense if the ball is in our field and the ball is moving towards our goal
-        if self.field * state.get_puck_pos()[0] >= 0 and self.field * state.get_puck_vel()[0] >= 0:
+        # Defense if the ball is in our field, and the ball is moving towards our goal
+        if self.field * state.get_puck_pos()[0] >= self.params.arena_limits_x/4.0 and self.field * state.get_puck_vel()[0] >= 0:
             return "defense"
         else:
             return "offense"
@@ -68,22 +68,23 @@ class ClassicalTeam:
         opp2_dist_from_puck = np.linalg.norm(opp_pos2 - puck_pos)
 
         if self.curr_play == "offense":
-            self.player.simple_kick(state,  self.kick_velocity)
+            self.player.simple_kick(state, self.kick_velocity)
 
-            # if self.field * state.get_puck_pos()[0] >= 0 and goalie_dist_from_puck < player_dist_from_puck:
-            #     self.goalie.simple_kick(state, self.kick_velocity)
-            # else:
-            #     self.goalie.defend(state)
-
-            self.goalie.simple_kick(state,  self.kick_velocity)
+            # If in the home field, the goalie defends, else attacks
+            if self.field * state.get_puck_pos()[0] >= 0:
+                self.goalie.defend(state)
+            else:
+                self.goalie.simple_kick(state, self.kick_velocity)
 
         elif self.curr_play == "defense":
+            # player tries to hit the ball twice as hard
+            self.player.simple_kick(state,  2 * self.kick_velocity)
+
             # if opponents are not too close, goalie kicks away the puck
             if goalie_dist_from_puck < opp1_dist_from_puck and goalie_dist_from_puck < opp2_dist_from_puck:
                 self.goalie.defend_kick(state, self.kick_velocity)
             else:
                 self.goalie.defend(state)
-
 
             # player tries to intercept the ball
             self.player.defend_kick(state,  self.kick_velocity)

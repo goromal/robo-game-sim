@@ -17,7 +17,7 @@ class GameParams:
         self.player_radius = 0.2
         self.puck_radius = 0.175
         self.tau_player=0.5
-        self.tau_puck = 0.1 # 0.1 was too difficult to bouncing off the wall and move to goal
+        self.tau_puck = 0.1 # set to 1.0 for bounce_kick to work (also in GameSim.cpp)
         self.player_mass = 1.0
         self.puck_mass = 0.5
         self.input_limit= 10.0
