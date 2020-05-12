@@ -26,7 +26,7 @@ class CBF:
         self.params = params
 
         # initialize CBF related params
-        assert safety_radius > 2*self.params.player_radius, "Safety radius must be greater than twice the player radius."
+        assert safety_radius >= 2*self.params.player_radius, "Safety radius must be greater than twice the player radius."
         assert barrier_gain > 0, "Barrier gain must be greater than 0."
         self.safety_radius = safety_radius
         self.barrier_gain = barrier_gain
