@@ -10,10 +10,6 @@ class SimState():
         self.A2 = 10
         self.B1 = 14
         self.B2 = 18
-        self.A1_COL = 22
-        self.A2_COL = 23
-        self.B1_COL = 24
-        self.B2_COL = 25
         self.state = copy.deepcopy(state)
 
     def get_player_pos(self, team, player_id):
@@ -31,18 +27,6 @@ class SimState():
             return self.state[self.B1:(self.B1+4)]
         elif team == "B" and player_id == 2:
             return self.state[self.B2:(self.B2+4)]
-        else:
-            print("Team or player not recognized! team = A or B, player_id = 1 or 2")
-
-    def get_num_collisions(self, team, player_id):
-        if team == "A" and player_id == 1:
-            return self.state[self.A1_COL]
-        elif team == "A" and player_id == 2:
-            return self.state[self.A2_COL]
-        elif team == "B" and player_id ==1:
-            return self.state[self.B1_COL]
-        elif team == "B" and player_id == 2:
-            return self.state[self.B2_COL]
         else:
             print("Team or player not recognized! team = A or B, player_id = 1 or 2")
 
