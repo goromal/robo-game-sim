@@ -2,7 +2,7 @@ logfile = 'minimal_game.log';
 make_video = false; % will run slower than real-time if true
 videofile = 'minimal_game.avi';
 % These parameters should match what you ran your single-run sim with:
-T = 5.0;
+T = 50.0;
 dt = 0.05;
 max_score = 4;
 bx0 = 0.0;
@@ -16,7 +16,7 @@ close all
 addpath(genpath('matlab_utilities'))
 
 % Run simulation
-system('../py/run_sim.py');
+% system('../py/run_sim.py');
 
 % Read output log file, sample at 20 FPS
 logdata = read_log(logfile, 29);

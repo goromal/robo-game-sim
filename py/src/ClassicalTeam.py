@@ -1,5 +1,6 @@
 import numpy as np
 from src.ClassicalPlayer import ClassicalPlayer
+from src.CBF import CBF
 
 class ClassicalTeam:
     def __init__(self, params, field, team, state):
@@ -9,8 +10,10 @@ class ClassicalTeam:
         self.goalie = ClassicalPlayer(params, field, self.team, 1, state)
         self.player = ClassicalPlayer(params, field, self.team, 2, state)
         self.curr_play =  "defense" # one of ["defense", "offense",]
-        self.kick_velocity = 2
+        self.kick_velocity = 4
         # self.bounce_kick_planned = False
+
+        self.CBF = CBF(params, params.safety_radius, params.barrier_gain)
 
     def run(self, state):
         """Simple strategy based on state machine."""
@@ -26,6 +29,20 @@ class ClassicalTeam:
         # Do not change below here
         vel_goalie, _ = self.goalie.get_control()
         vel_player, _ = self.player.get_control()
+
+        # Get safe controller
+        # u_nominal = [vel_goalie, vel_player]
+        # velocities = [state.get_player_vel(self.team, self.goalie.player_id),
+        #               state.get_player_vel(self.team, self.player.player_id),
+        #               state.get_player_vel(self.get_adversary_team(), 1),
+        #               state.get_player_vel(self.get_adversary_team(), 2)]
+        # positions = [state.get_player_pos(self.team, self.goalie.player_id),
+        #              state.get_player_pos(self.team, self.player.player_id),
+        #              state.get_player_pos(self.get_adversary_team(), 1),
+        #              state.get_player_pos(self.get_adversary_team(), 2)]
+        # indices_to_solve = [0, 1]
+        # vel_goalie, vel_player = self.CBF.get_safe_control(u_nominal, velocities, positions, indices_to_solve)
+
         return vel_goalie, vel_player
 
 
@@ -53,10 +70,12 @@ class ClassicalTeam:
         if self.curr_play == "offense":
             self.player.simple_kick(state,  self.kick_velocity)
 
-            if self.field * state.get_puck_pos()[0] >= 0:
-                self.goalie.simple_kick(state, self.kick_velocity)
-            else:
-                self.goalie.defend(state)
+            # if self.field * state.get_puck_pos()[0] >= 0 and goalie_dist_from_puck < player_dist_from_puck:
+            #     self.goalie.simple_kick(state, self.kick_velocity)
+            # else:
+            #     self.goalie.defend(state)
+
+            self.goalie.simple_kick(state,  self.kick_velocity)
 
         elif self.curr_play == "defense":
             # if opponents are not too close, goalie kicks away the puck
@@ -64,6 +83,7 @@ class ClassicalTeam:
                 self.goalie.defend_kick(state, self.kick_velocity)
             else:
                 self.goalie.defend(state)
+
 
             # player tries to intercept the ball
             self.player.defend_kick(state,  self.kick_velocity)
