@@ -2,12 +2,12 @@ import numpy as np
 from src.ClassicalPlayer import ClassicalPlayer
 
 class ClassicalTeam:
-    def __init__(self, params, field, team, state):
+    def __init__(self, params, field, team):
         self.params = params
         self.field = field
         self.team = team
-        self.goalie = ClassicalPlayer(params, field, self.team, 1, state)
-        self.player = ClassicalPlayer(params, field, self.team, 2, state)
+        self.goalie = ClassicalPlayer(params, field, self.team, 1)
+        self.player = ClassicalPlayer(params, field, self.team, 2)
         self.curr_play = "defense" # one of ["defense", "offense"]
         self.kick_velocity = 4
         # self.bounce_kick_planned = False

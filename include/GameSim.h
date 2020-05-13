@@ -19,7 +19,9 @@ public:
     GameSim();
     ~GameSim();
     Eigen::Matrix<double, SimState::SIZE, 1> reset(const double &dt, const int &winning_score,
-               const Eigen::Vector4d &x0_ball, const double& noise, const bool &log, const std::string &logname);
+               const Eigen::Vector4d &x0_ball, const double& noise, const bool &log, const std::string &logname,
+                                                   const int &seed, const double &tau_puck, const double &tau_player,
+                                                   const double &player_mass, const double &puck_mass);
     bool undecided();
     Eigen::Matrix<double, SimState::SIZE, 1> run(const Eigen::Vector2d &vel_A1, const Eigen::Vector2d &vel_A2,
                                                  const Eigen::Vector2d &vel_B1, const Eigen::Vector2d &vel_B2);

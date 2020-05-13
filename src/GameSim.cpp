@@ -20,7 +20,9 @@ GameSim::~GameSim() {}
 
 Eigen::Matrix<double, SimState::SIZE, 1> GameSim::reset(const double &dt=0.05,
                     const int &winning_score=3, const Eigen::Vector4d &x0_ball=Eigen::Vector4d::Zero(),
-                    const double &noise=0.0, const bool &log=false, const std::string &logname="~/gamelog.log")
+                    const double &noise=0.0, const bool &log=false, const std::string &logname="~/gamelog.log",
+                    const int &seed=0, const double &tau_puck=0.1, const double &tau_player=0.5,
+                    const double &player_mass=1.0, const double &puck_mass=0.5)
 {
     dt_ = dt;
     dt_col_ = dt / COLLISION_GRID_POINTS;
@@ -35,6 +37,13 @@ Eigen::Matrix<double, SimState::SIZE, 1> GameSim::reset(const double &dt=0.05,
     state_.x_B1 = Eigen::Vector4d( arena_X_/4.0,  arena_Y_/4.0, 0.0, 0.0);
     state_.x_B2 = Eigen::Vector4d( arena_X_/4.0, -arena_Y_/4.0, 0.0, 0.0);
     state_.damage.setZero();
+
+    reng_ = std::default_random_engine(seed);
+
+    tau_puck_ = tau_puck;
+    tau_player_ = tau_player;
+    player_mass_ = player_mass;
+    puck_mass_ = puck_mass;
 
     log_ = log;
     if (log_)
