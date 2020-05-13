@@ -10,7 +10,7 @@ GameSim::GameSim() : reng_(), w_stdev_(0.0), w_dist_(0.0, 1.0)
 
     entities_ = {A1GRID, A2GRID, B1GRID, B2GRID, PKGRID};
 
-    tau_puck_ = 0.1; // set to 1.0 for bounce_kick to work (also in run_sim.py)
+    tau_puck_ = 0.1;
     tau_player_ = 0.5;
     player_mass_ = 1.0;
     puck_mass_ = 0.5;
