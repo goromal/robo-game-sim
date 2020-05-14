@@ -5,6 +5,10 @@ import matplotlib.pyplot as plt
 from pydrake.all import eq, MathematicalProgram, Solve, Variable, LinearSystem, DirectTranscription, GetInfeasibleConstraints
 
 class ContactOptimizer:
+    """An optimizer that finds desired initial velocity of the puck such that it bounces off of the specified wall
+    and goes into the goal of the adversary team. This should be used together with LinearOptimizer to find appropriate
+    player trajectory."""
+
     def __init__(self, params):
         self.params = params
 

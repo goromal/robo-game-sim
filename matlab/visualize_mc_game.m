@@ -1,22 +1,28 @@
-logfile = 'dmpc_game.log';
+log_prefix_path = '../py/'; % relative path to log_prefix directory (IF NOT EMPTY, MUST HAVE TRAILING SLASH /
+log_prefix = 'classical_vs_classical_nocbf'; % directory containing mc log files
+run_number = 2;
 make_video = false; % will run slower than real-time if true
-videofile = 'minimal_game.avi';
-% These parameters should match what you ran your single-run sim with:
-T = 50.0;
-dt = 0.05;
-max_score = 4;
-bx0 = 0.0;
-by0 = 0.0;
 
 %% VISUALIZE INTERNAL GAME AT 20 FPS
+
+videofile = strcat(log_prefix, '_', num2str(run_number), '.avi');
+configfile = strcat(log_prefix_path, log_prefix, '/configuration.txt');
+logfile = strcat(log_prefix_path, log_prefix, '/mc_run_', num2str(run_number), '.log');
+fileID = fopen(configfile,'r');
+formatSpec = '%f';
+config = fscanf(fileID, formatSpec);
+fclose(fileID);
+
+T = config(2);
+dt = config(3);
+max_score = round(config(4));
+bx0 = config(5);
+by0 = config(6);
 
 close all
 
 % Add helpful libraries
 addpath(genpath('matlab_utilities'))
-
-% Run simulation
-system('python3 ../py/test_dmpc.py');
 
 % Read output log file, sample at 20 FPS
 logdata = read_log(logfile, 29);

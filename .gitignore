@@ -10,5 +10,6 @@ py/*.cbp
 CMakeLists.txt.user
 **/*.log
 **/*.avi
+**/*.mp4
 .idea
 cmake-build-debug
