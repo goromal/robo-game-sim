@@ -3,6 +3,9 @@ import math
 import copy
 from pydrake.all import eq, le, ge,  DirectCollocation, DirectTranscription, SnoptSolver, Solve, MathematicalProgram, Variable, LinearSystem, GetInfeasibleConstraints, GurobiSolver
 
+import matplotlib.pyplot as plt
+
+
 class MpcParams():
     def __init__(self, params):
         self.params = params
@@ -37,11 +40,13 @@ class JointPuckPlayerMPC():
         self.prev_x1 = None
         self.prev_xp = None
 
+        self.fig_idx = 0
+
     def compute_control(self, x_p1, x_puck, p_goal, obstacles = None):
-        """Solve for initial velocity for the puck to bounce the wall once and hit the goal."""
+        """Generata player's trajectory that drives the puck into the goal"""
         
         # initialize program
-        N = self.mpc_params.N # length of receding horizon
+        N = self.mpc_params.N # length of horizon
         prog = MathematicalProgram()
 
         # State and input variables
@@ -53,16 +58,23 @@ class JointPuckPlayerMPC():
         t1_kick = prog.NewContinuousVariables(N+1, name='kick_time')     # slack variables that captures if player 1 is kicking or not at the given time step
                                                                          # Defined as continous, but treated as mixed integer. 1 when kicking
         lambda_1 = prog.NewContinuousVariables(N+1, 2, name='lambda_1')  # Contact force between player and puck
-        dist = prog.NewContinuousVariables(N+1, name='dist_puck_player') # distance between puck and player 
+        dist_p_1 = prog.NewContinuousVariables(N+1, name='dist_p_1_puck_player') # distance between puck and player 
         cost = prog.NewContinuousVariables(N+1, name='cost')             # slack variable to monitor cost
 
         # Compute distance between puck and player as slack variable. 
         for k in range(N+1):
             r1 = self.sim_params.player_radius
             rp = self.sim_params.puck_radius
-            prog.AddConstraint(dist[k] == (x1[k, 0:2]-xp[k, 0:2]).dot(x1[k, 0:2]-xp[k, 0:2]) - (r1+rp)**2)
+            prog.AddConstraint(dist_p_1[k] == (x1[k, 0:2]-xp[k, 0:2]).dot(x1[k, 0:2]-xp[k, 0:2]) - (r1+rp)**2)
 
-        # COST and final states
+        # Enforce distance to be positive
+        for k in range(N+1):
+            prog.AddConstraint(dist_p_1[k] >= 0)
+
+        # Enfore t kick to be 0 at the beginning
+        # prog.AddConstraint(t1_kick[0] == 0)
+
+        # COST: minimize distance of the puck from the goal
         x_puck_des = np.concatenate((p_goal, np.zeros(2)), axis=0)      # desired position and vel for puck
         for k in range(N+1):
             Q_dist_puck_goal =10*np.eye(2)
@@ -73,6 +85,11 @@ class JointPuckPlayerMPC():
             # + q_dist_puck_player*dist[k])
             prog.AddCost(cost[k])
 
+        # Add small penalty on control input
+        R = 0.01*np.eye(2)
+        for k in range(N):
+            prog.AddCost(u1[k].dot(np.matmul(R, u1[k])))
+
         # Initial states for puck and player_
         prog.AddBoundingBoxConstraint(x_p1, x_p1, x1[0])        # Intial state for player 1
         prog.AddBoundingBoxConstraint(x_puck, x_puck, xp[0])    # Initial state for puck
@@ -80,9 +97,9 @@ class JointPuckPlayerMPC():
         # Use slack variable to activate guard condition based on distance. 
         M = 15**2
         for k in range(N+1): 
-            prog.AddLinearConstraint(dist[k] <= M*(1-t1_kick[k]))
+            prog.AddLinearConstraint(dist_p_1[k] <= M*(1-t1_kick[k]))
 
-        # Apply constraints on the impact force
+        # Apply constraints on the impact force based on the guard. 
         M = np.ones((2,1))*10
         for k in range(N+1):
             prog.AddConstraint(le(lambda_1[k], M*(t1_kick[k]))) # lambda <= M*(1-t_kick)
@@ -137,13 +154,28 @@ class JointPuckPlayerMPC():
         self.prev_x1 = result.GetSolution(x1)
         
         if True:
-            print("x1:{}".format(result.GetSolution(x1)))
-            print("u1: {}".format( result.GetSolution(u1)))
-            print("xp: {}".format( result.GetSolution(xp)))
-            print('dist{}'.format(result.GetSolution(dist)))
-            print("t1_kick:{}".format(result.GetSolution(t1_kick)))
-            print("cost:{}".format(result.GetSolution(cost)))
-
+            print("State of player 1 x1:{}".format(result.GetSolution(x1)))
+            print("Commands of player 1 u1: {}".format(result.GetSolution(u1)))
+            print("State of puck xp: {}".format(result.GetSolution(xp)))
+            print("dist_p_1ance of puck from the goal: {}".format(result.GetSolution(dist_p_1)))
+            print("Is player kicking? t1_kick:{}".format(result.GetSolution(t1_kick)))
+            print("COST (distance of puck from goal):{}".format(result.GetSolution(cost)))
+            print("Contact force: {}".format(result.GetSolution(lambda_1)))
+            plt.ioff()
+            plt.figure()
+            fig, (ax0, ax1, ax2, ax3) = plt.subplots(4, 1)
+            ax0.plot(result.GetSolution(cost))
+            ax0.set_title("Cost")
+            ax1.plot(result.GetSolution(t1_kick))
+            ax1.set_title("Kick")
+            ax2.plot(result.GetSolution(lambda_1))
+            ax2.set_title("Contact force")
+            ax3.plot(result.GetSolution(dist_p_1))
+            ax3.set_title("Distance puck player")
+            fig.show()
+            plt.savefig("fig_" + str(self.fig_idx) + ".eps")
+            self.fig_idx += 1
+            
         # return whether successful, and the initial player velocity
         u1_opt = result.GetSolution(u1)
         return u1_opt, np.zeros(2)

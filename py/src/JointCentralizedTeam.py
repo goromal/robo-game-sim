@@ -27,7 +27,6 @@ class JointCentralizedTeam:
     def run_openloop(self, state): 
         while self.t < self.T-1:
             self.t = self.t + 1
-            print("Erorr os hsere; ", self.u1[self.t])
             return self.u1[self.t, :], np.zeros(2)
 
         # compute new open-loop trajectory
@@ -36,8 +35,6 @@ class JointCentralizedTeam:
         x_p1 = state.get_player_state(self.team, 1)
         self.u1, _ = self.joint_puck_player_controller.compute_control(x_p1, x_puck, p_goal)
         self.T = len(self.u1[:,1])
-        print("T: ", self.T)
-        print("u1: ", self.u1)
         self.t = 0
         return self.u1[self.t, :], np.zeros(2)
 
