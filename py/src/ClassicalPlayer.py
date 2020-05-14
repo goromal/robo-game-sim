@@ -4,7 +4,7 @@ from src.ContactOptimizer import ContactOptimizer
 from src.NonLinearOptimizer import NonLinearOptimizer
 
 class ClassicalPlayer:
-    def __init__(self, params, field, team, player_id, state):
+    def __init__(self, params, field, team, player_id):
         # player parameters
         self.params = params
         self.field = field          # on which side of the arena the player plays (defend) -1 left, +1 right
@@ -54,7 +54,7 @@ class ClassicalPlayer:
         v0 = state.get_player_vel(self.team, self.player_id)
         pf, vf = self.get_final_state_for_kick(p_goal, p_puck, kick_velocity)
         T = time_to_kick
-  
+
         # Store trajectory and reset execution timer
         successful, self.u_traj = self.linear_optimizer.intercepting_traj(p0, v0, pf, vf, T)
         self.t_idx = 0
@@ -79,7 +79,7 @@ class ClassicalPlayer:
         self.t_idx = 0
 
         return successful
-    
+
     def idle(self):
         """player stays where it is"""
         self.u_traj = np.zeros((2, 1))
@@ -104,7 +104,7 @@ class ClassicalPlayer:
             self.t_idx = 0
 
         return successful
-    
+
     def simple_kick_avoiding_obs(self, state, kick_velocity):
         """Minimum time trajectory with desired final velocity pointing towards goal while avoiding obstacle"""
         p_puck = state.get_puck_pos()
@@ -173,22 +173,7 @@ class ClassicalPlayer:
         """Stay in between puck and home goal, within the goalie region."""
         p0 = state.get_player_pos(self.team, self.player_id)
         v0 = state.get_player_vel(self.team, self.player_id)
-
-        defense_line_x_min = 0.3
-        defense_line_x_max = 0.7
         pf = self.get_home_goal_pos() + 0.5* (state.get_puck_pos() - self.get_home_goal_pos())
-
-        # Threshold where the goalie can be
-        if self.field > 0:
-            pf[0] = min(pf[0], self.params.arena_limits_x/2.0 - defense_line_x_min)
-            pf[0] = max(pf[0], self.params.arena_limits_x/2.0 - defense_line_x_max)
-        else:
-            pf[0] = max(pf[0], -self.params.arena_limits_x/2.0 + defense_line_x_min)
-            pf[0] = min(pf[0], -self.params.arena_limits_x/2.0 + defense_line_x_max)
-
-        pf[1] = max(pf[1], -self.params.goal_height/2.0)
-        pf[1] = min(pf[1], self.params.goal_height/2.0)
-
 
         successful, u_traj = self.linear_optimizer.min_time_traj(p0, v0, pf, np.zeros(2))
         if successful:
@@ -271,4 +256,3 @@ class ClassicalPlayer:
         """Get normalized vector."""
         norm = np.linalg.norm(v)
         return v / norm if norm > 0 else v
-

@@ -6,6 +6,7 @@
 #define COLLISION_GRID_POINTS 50
 #define COLLISION_COUNTER_LIM 50
 #define MAX_CONCURRENT_COLLS  10
+#define OVERLAP_BUFFER        1.1
 
 enum {NO_SCORE, TEAM_A_SCORE, TEAM_B_SCORE};
 
@@ -18,7 +19,9 @@ public:
     GameSim();
     ~GameSim();
     Eigen::Matrix<double, SimState::SIZE, 1> reset(const double &dt, const int &winning_score,
-               const Eigen::Vector4d &x0_ball, const double& noise, const bool &log, const std::string &logname);
+               const Eigen::Vector4d &x0_ball, const double& noise, const bool &log, const std::string &logname,
+                                                   const int &seed, const double &tau_puck, const double &tau_player,
+                                                   const double &player_mass, const double &puck_mass);
     bool undecided();
     Eigen::Matrix<double, SimState::SIZE, 1> run(const Eigen::Vector2d &vel_A1, const Eigen::Vector2d &vel_A2,
                                                  const Eigen::Vector2d &vel_B1, const Eigen::Vector2d &vel_B2);
@@ -37,7 +40,8 @@ private:
     Vector4d gridSimAgnostic(const int &id, const int &idx, const double &dt);
     Vector4d simAgnostic(const int &id, const Vector4d &x, const Vector2d &u, const double &dt);
     int GStoSSIdx(const int &GS_idx);
-    void correctOverlap(const int &i, const int &j, const int &idx, const double &r_i, const double &r_j);
+    bool correctOverlap(const int &i, const int &j, const int &idx, const double &r_i, const double &r_j);
+    bool correctOverlap(const int &i, const int &idx, const double &r_i, const int &WALL_TYPE);
 
     Matrix<double, 35, COLLISION_GRID_POINTS + 1> state_grid_;
     std::vector<Collision> collisions_;

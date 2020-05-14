@@ -1,25 +1,20 @@
-logfile = 'dmpc_game.log';
-make_video = false; % will run slower than real-time if true
-videofile = 'minimal_game.avi';
+logfile = '../py/dmpc_game.log';
+make_video = true; % will run slower than real-time if true
+videofile = 'minimal_game_2v2_100s.avi';
 % These parameters should match what you ran your single-run sim with:
-T = 50.0;
+T = 100.0;
 dt = 0.05;
 max_score = 4;
 bx0 = 0.0;
 by0 = 0.0;
 
-%% VISUALIZE INTERNAL GAME AT 20 FPS
+%%
 
 close all
-
-% Add helpful libraries
 addpath(genpath('matlab_utilities'))
 
-% Run simulation
-system('python3 ../py/test_dmpc.py');
-
 % Read output log file, sample at 20 FPS
-logdata = read_log(logfile, 29);
+logdata = read_log(logfile, 13);
 t_raw   = logdata(1,:);
 score_A = logdata(2,:);
 score_B = logdata(3,:);
@@ -115,4 +110,3 @@ if make_video
     % close the writer object
     close(writerObj);
 end
-

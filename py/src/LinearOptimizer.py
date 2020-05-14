@@ -15,9 +15,9 @@ class LinearOptimizer:
         self.D = np.zeros((4,2))
         self.sys = LinearSystem(self.A, self.B, self.C, self.D, self.params.dt)
         self.sys_c = LinearSystem(self.A_c, self.B_c, self.C, self.D)
- 
-    # given initial state, final state, final time (Jeremy's)
+
     def intercepting_traj(self, p0, v0, pf, vf, T):
+        """Trajectory planning given initial state, final state, and final time."""
         x0 = np.concatenate((p0, v0), axis=0)
         xf = np.concatenate((pf, vf), axis=0)
         prog = DirectTranscription(self.sys, self.sys.CreateDefaultContext(), int(T/self.params.dt))
@@ -35,10 +35,11 @@ class LinearOptimizer:
         u_sol = prog.ReconstructInputTrajectory(result)
         if not result.is_success():
             print("Intercepting trajectory: optimization failed")
+            return False, np.zeros((2, 1))
 
         u_values = u_sol.vector_values(u_sol.get_segment_times())
         return result.is_success(), u_values
-    
+
     def min_time_traj_transcription(self, p0, v0, pf, vf, xlim=None, ylim=None):
         """Minimum time traj using directi transcription."""
         T = 2
@@ -47,7 +48,7 @@ class LinearOptimizer:
         xf = np.concatenate((pf, vf), axis=0)
         prog = DirectTranscription(self.sys, self.sys.CreateDefaultContext(), N)
         prog.AddBoundingBoxConstraint(x0, x0, prog.initial_state())     # initial states
-        prog.AddBoundingBoxConstraint(xf, xf, prog.final_state())   
+        prog.AddBoundingBoxConstraint(xf, xf, prog.final_state())
 
         self.add_input_limits(prog)
         self.add_arena_limits(prog)
@@ -58,6 +59,7 @@ class LinearOptimizer:
         u_sol = prog.ReconstructInputTrajectory(result)
         if not result.is_success():
             print("Minimum time trajectory: optimization failed")
+            return False, np.zeros((2, 1))
 
         u_values = u_sol.vector_values(u_sol.get_segment_times())
         return result.is_success(), u_values
@@ -78,13 +80,14 @@ class LinearOptimizer:
         u_sol = prog.ReconstructInputTrajectory(result)
         if not result.is_success():
             print("Minimum time bounce kick trajectory: optimization failed")
+            return False, np.zeros((2, 1))
 
         u_values = u_sol.vector_values(u_sol.get_segment_times())
         return result.is_success(), u_values
 
-    # TODO: This does not work..
     def min_time_bounce_kick_traj_dir_col(self, p0, v0, p0_puck, v0_puck, v_puck_desired):
-        """generate minimum time trajectory while avoiding obs"""
+        """DO NOT USE. NOT WORKING.
+        Minimum time trajectory + bounce kick off the wall."""
         N = 15
         minT = self.params.dt / N
         maxT = 5.0 / N
@@ -108,6 +111,7 @@ class LinearOptimizer:
         result = solver.Solve(prog)
         if not result.is_success():
             print("Minimum time trajectory: optimization failed")
+            return False, np.zeros((2, 1))
 
         u_trajectory = prog.ReconstructInputTrajectory(result)
         times = np.linspace(u_trajectory.start_time(), u_trajectory.end_time(), (u_trajectory.end_time() - u_trajectory.start_time()) / self.params.dt )
@@ -119,6 +123,7 @@ class LinearOptimizer:
         return result.is_success(), u_values
 
     def add_final_state_constraint_elastic_collision(self, prog, p0_puck, v0_puck, v_puck_desired):
+        """Utility function for bounce kick from the wall. Probably not a linear constraint."""
         m1 = self.params.player_mass
         m2 = self.params.puck_mass
         p1 = prog.final_state()[:2] # var: player's final position
@@ -160,6 +165,7 @@ class LinearOptimizer:
         result = solver.Solve(prog)
         if not result.is_success():
             print("Minimum time trajectory: optimization failed")
+            return False, np.zeros((2, 1))
 
         # subsample trajectory accordingly
         u_trajectory = prog.ReconstructInputTrajectory(result)
