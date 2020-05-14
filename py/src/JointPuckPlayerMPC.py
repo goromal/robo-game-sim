@@ -53,6 +53,8 @@ class JointPuckPlayerMPC():
         x1 = prog.NewContinuousVariables(N+1, 4, name='p1_state')        # state of player 1
         u1 = prog.NewContinuousVariables(N, 2, name='p1_input')          # inputs for player 1
         xp = prog.NewContinuousVariables(N+1, 4, name='puck_state')      # state of the puck
+        v1_kick = prog.NewContinuousVariables(N+1, 2, name='v1_kick')    # velocity of player after kick to puck
+        vp_kick = prog.NewContinuousVariables(N+1, 2, name='vp_kick')    # velocity of puck after being kicked by the player
 
         # Slack variables
         t1_kick = prog.NewContinuousVariables(N+1, name='kick_time')     # slack variables that captures if player 1 is kicking or not at the given time step
@@ -72,21 +74,20 @@ class JointPuckPlayerMPC():
             prog.AddConstraint(dist_p_1[k] >= 0)
 
         # Enfore t kick to be 0 at the beginning
-        # prog.AddConstraint(t1_kick[0] == 0)
+        prog.AddConstraint(t1_kick[0] == 0)
 
         # COST: minimize distance of the puck from the goal
         x_puck_des = np.concatenate((p_goal, np.zeros(2)), axis=0)      # desired position and vel for puck
         for k in range(N+1):
-            Q_dist_puck_goal =10*np.eye(2)
-            q_dist_puck_player = 0.1
+            Q_dist_puck_goal = 10.0*np.eye(2)
+            q_dist_puck_player = 0.0
             e1 = x_puck_des[0:2] - xp[k, 0:2] 
             e2 = xp[k, 0:2] - x1[k, 0:2]
-            prog.AddConstraint(cost[k] == e1.dot(np.matmul(Q_dist_puck_goal, e1)))
-            # + q_dist_puck_player*dist[k])
+            prog.AddConstraint(cost[k] == e1.dot(np.matmul(Q_dist_puck_goal, e1))+ q_dist_puck_player*dist_p_1[k])
             prog.AddCost(cost[k])
 
         # Add small penalty on control input
-        R = 0.01*np.eye(2)
+        R = 0.1*np.eye(2)
         for k in range(N):
             prog.AddCost(u1[k].dot(np.matmul(R, u1[k])))
 
@@ -104,6 +105,26 @@ class JointPuckPlayerMPC():
         for k in range(N+1):
             prog.AddConstraint(le(lambda_1[k], M*(t1_kick[k]))) # lambda <= M*(1-t_kick)
             prog.AddConstraint(ge(lambda_1[k], -M*(t1_kick[k])))
+        
+        # Compute elastic collision for every possible timestep. 
+        for k in range(N+1):
+            v_puck_bfr = xp[k,2:4]
+            v_player_bfr = x1[k, 2:4]
+            v_puck_aft, v_player_aft = self.get_reset_velocities(v_puck_bfr, v_player_bfr)
+            prog.AddConstraint(eq(vp_kick[k], v_puck_aft))
+            prog.AddConstraint(eq(v1_kick[k], v_player_aft))
+
+        # Enforce reset condition at impact using the BIGM method for the puck and the player
+        for k in range(N):
+            
+            M = 20*np.ones(2)
+            # puck
+            prog.AddLinearConstraint(le(vp_kick[k+1] - xp[k+1, 2:4], M*(1-t1_kick[k]))) # puck
+            prog.AddLinearConstraint(ge(vp_kick[k+1] - xp[k+1, 2:4], -M*(1-t1_kick[k]))) # puck 
+
+            # player
+            prog.AddLinearConstraint(le(v1_kick[k+1] - x1[k+1, 2:4], M*(1-t1_kick[k]))) # player
+            prog.AddLinearConstraint(ge(v1_kick[k+1] - x1[k+1, 2:4], -M*(1-t1_kick[k])))
 
         # Player dynamics with collisions
         for k in range(N):
@@ -120,11 +141,13 @@ class JointPuckPlayerMPC():
             #xp_kick = np.concatenate((xp[k][0:2], vp_kick[k]), axis=0) # State of the puck after it gets kicked
             xp_next = np.matmul(A_p, xp[k]) + np.matmul(E_p, -lambda_1[k])
             prog.AddConstraint(eq(xp[k+1], xp_next))
-
+        
         # Input and arena constraint
         self.add_input_limits(prog, u1, N)
         self.add_arena_limits(prog, x1, N)
         self.add_arena_limits(prog, xp, N)
+
+        prog.AddLinearConstraint(sum(t1_kick) >= 1)
 
         # fake mixed-integer constraint
         for k in range(N+1):
@@ -163,7 +186,7 @@ class JointPuckPlayerMPC():
             print("Contact force: {}".format(result.GetSolution(lambda_1)))
             plt.ioff()
             plt.figure()
-            fig, (ax0, ax1, ax2, ax3) = plt.subplots(4, 1)
+            fig, (ax0, ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(7, 1, figsize=(8,20))
             ax0.plot(result.GetSolution(cost))
             ax0.set_title("Cost")
             ax1.plot(result.GetSolution(t1_kick))
@@ -172,8 +195,13 @@ class JointPuckPlayerMPC():
             ax2.set_title("Contact force")
             ax3.plot(result.GetSolution(dist_p_1))
             ax3.set_title("Distance puck player")
-            fig.show()
-            plt.savefig("fig_" + str(self.fig_idx) + ".eps")
+            ax4.plot(result.GetSolution(u1))
+            ax4.set_title("Actuation (u)")
+            ax5.plot(result.GetSolution(x1))
+            ax5.set_title("Player states")
+            ax6.plot(result.GetSolution(xp))
+            ax6.set_title("Puck states")
+            plt.savefig("fig_" + str(self.fig_idx) + ".pdf")
             self.fig_idx += 1
             
         # return whether successful, and the initial player velocity
@@ -196,8 +224,8 @@ class JointPuckPlayerMPC():
         v_player_final = vbf
 
         ################## approximation for debug
-        v_puck_final = v_player_bfr
-        v_player_final = v_player_bfr
+        #v_puck_final = v_player_bfr
+        #v_player_final = v_player_bfr
         return v_puck_final, v_player_final
 
     def add_input_limits(self, prog, u, N):
