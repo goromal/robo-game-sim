@@ -37,36 +37,42 @@ class ClassicalTeam:
             return "offense"
 
     def execute(self, state):
-        """Execute defense of offense strategies."""
+        """Execute defense of offense strategies. Note that the classical strategy is open-loop, i.e., each planned
+        trajectory has to be completed, before planning the next one."""
 
         if self.curr_play == "offense":
             # player kicks the ball towards the goal
-            self.player.simple_kick(state, self.kick_velocity)
+            if self.player.is_idle():
+                self.player.simple_kick(state, self.kick_velocity)
 
             # goalie defends if the ball is in the home field, else attacks
-            if self.field * state.get_puck_pos()[0] >= 0:
-                self.goalie.defend(state)
-            else:
-                self.goalie.simple_kick(state, self.kick_velocity)
+            if self.goalie.is_idle():
+                if self.field * state.get_puck_pos()[0] >= 0:
+                    self.goalie.defend(state)
+                else:
+                    self.goalie.simple_kick(state, self.kick_velocity)
+
         elif self.curr_play == "defense":
             # player tries to hit the ball much harder to deflect the ball
-            # self.player.simple_kick(state,  2 * self.kick_velocity)
-            self.player.defend_kick(state,  1.5 * self.kick_velocity)
+            if self.player.is_idle():
+                # self.player.simple_kick(state,  2 * self.kick_velocity)
+                self.player.defend_kick(state,  1.5 * self.kick_velocity)
 
             # if opponents are not too close, goalie kicks away the puck, else defends
-            opp_pos1 = state.get_player_pos(self.get_adversary_team(), 1)
-            opp_pos2 = state.get_player_pos(self.get_adversary_team(), 2)
-            goalie_pos = state.get_player_pos(self.get_adversary_team(), 1)
-            puck_pos = state.get_puck_pos()
+            if self.goalie.is_idle():
+                opp_pos1 = state.get_player_pos(self.get_adversary_team(), 1)
+                opp_pos2 = state.get_player_pos(self.get_adversary_team(), 2)
+                goalie_pos = state.get_player_pos(self.get_adversary_team(), 1)
+                puck_pos = state.get_puck_pos()
 
-            goalie_dist_from_puck = np.linalg.norm(goalie_pos - puck_pos)
-            opp1_dist_from_puck = np.linalg.norm(opp_pos1 - puck_pos)
-            opp2_dist_from_puck = np.linalg.norm(opp_pos2 - puck_pos)
+                goalie_dist_from_puck = np.linalg.norm(goalie_pos - puck_pos)
+                opp1_dist_from_puck = np.linalg.norm(opp_pos1 - puck_pos)
+                opp2_dist_from_puck = np.linalg.norm(opp_pos2 - puck_pos)
 
-            if goalie_dist_from_puck < opp1_dist_from_puck and goalie_dist_from_puck < opp2_dist_from_puck:
-                self.goalie.defend_kick(state, self.kick_velocity)
-            else:
-                self.goalie.defend(state)
+                if goalie_dist_from_puck < opp1_dist_from_puck and goalie_dist_from_puck < opp2_dist_from_puck:
+                    self.goalie.defend_kick(state, self.kick_velocity)
+                else:
+                    self.goalie.defend(state)
 
     def clean_up(self):
         """Clean up old trajectories."""
