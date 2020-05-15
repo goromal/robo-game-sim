@@ -53,6 +53,8 @@ private:
     double p_rad_;
     double goal_height_;
 
+    bool scored_;
+
     double tau_player_;
     double tau_puck_;
 

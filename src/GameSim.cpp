@@ -10,7 +10,7 @@ GameSim::GameSim() : reng_(), w_stdev_(0.0), w_dist_(0.0, 1.0)
 
     entities_ = {A1GRID, A2GRID, B1GRID, B2GRID, PKGRID};
 
-    tau_puck_ = 0.1; // set to 1.0 for bounce_kick to work (also in run_sim.py)
+    tau_puck_ = 0.1;
     tau_player_ = 0.5;
     player_mass_ = 1.0;
     puck_mass_ = 0.5;
@@ -126,6 +126,7 @@ Eigen::Matrix<double, SimState::SIZE, 1> GameSim::run(const Eigen::Vector2d &vel
 void GameSim::updateSim(const Eigen::Vector2d &vel_A1, const Eigen::Vector2d &vel_A2,
                         const Eigen::Vector2d &vel_B1, const Eigen::Vector2d &vel_B2)
 {
+    scored_ = false;
     int base_idx = 1; // there shouldn't be any collision overlaps at time = t_
 
     // Populate state grid by simulating at collision time grid points
@@ -200,58 +201,18 @@ void GameSim::populateStateGrid(const Eigen::Vector2d &A1v, const Eigen::Vector2
         state_grid_.col(i)           [A1GRID + GRID_T]    = t_ + dt_col_ * i;
         state_grid_.col(i).block<2,1>(A1GRID + GRID_U, 0) = A1v;
         state_grid_.col(i).block<4,1>(A1GRID + GRID_S, 0) = gridSimAgnostic(A1GRID, i-1, dt_col_);
-        correctOverlap(A1GRID, A2GRID, i, r_A1, r_A2);
-        correctOverlap(A1GRID, B1GRID, i, r_A1, r_B1);
-        correctOverlap(A1GRID, B2GRID, i, r_A1, r_B2);
-        correctOverlap(A1GRID, PKGRID, i, r_A1, r_PK);
-        correctOverlap(A1GRID, i, r_A1, WALL_UP);
-        correctOverlap(A1GRID, i, r_A1, WALL_DOWN);
-        correctOverlap(A1GRID, i, r_A1, WALL_RIGHT);
-        correctOverlap(A1GRID, i, r_A1, WALL_LEFT);
         state_grid_.col(i)           [A2GRID + GRID_T]    = t_ + dt_col_ * i;
         state_grid_.col(i).block<2,1>(A2GRID + GRID_U, 0) = A2v;
         state_grid_.col(i).block<4,1>(A2GRID + GRID_S, 0) = gridSimAgnostic(A2GRID, i-1, dt_col_);
-        correctOverlap(A2GRID, A1GRID, i, r_A2, r_A1);
-        correctOverlap(A2GRID, B1GRID, i, r_A2, r_B1);
-        correctOverlap(A2GRID, B2GRID, i, r_A2, r_B2);
-        correctOverlap(A2GRID, PKGRID, i, r_A2, r_PK);
-        correctOverlap(A2GRID, i, r_A2, WALL_UP);
-        correctOverlap(A2GRID, i, r_A2, WALL_DOWN);
-        correctOverlap(A2GRID, i, r_A2, WALL_RIGHT);
-        correctOverlap(A2GRID, i, r_A2, WALL_LEFT);
         state_grid_.col(i)           [B1GRID + GRID_T]    = t_ + dt_col_ * i;
         state_grid_.col(i).block<2,1>(B1GRID + GRID_U, 0) = B1v;
         state_grid_.col(i).block<4,1>(B1GRID + GRID_S, 0) = gridSimAgnostic(B1GRID, i-1, dt_col_);
-        correctOverlap(B1GRID, A1GRID, i, r_B1, r_A1);
-        correctOverlap(B1GRID, A2GRID, i, r_B1, r_A2);
-        correctOverlap(B1GRID, B2GRID, i, r_B1, r_B2);
-        correctOverlap(B1GRID, PKGRID, i, r_B1, r_PK);
-        correctOverlap(B1GRID, i, r_B1, WALL_UP);
-        correctOverlap(B1GRID, i, r_B1, WALL_DOWN);
-        correctOverlap(B1GRID, i, r_B1, WALL_RIGHT);
-        correctOverlap(B1GRID, i, r_B1, WALL_LEFT);
         state_grid_.col(i)           [B2GRID + GRID_T]    = t_ + dt_col_ * i;
         state_grid_.col(i).block<2,1>(B2GRID + GRID_U, 0) = B2v;
         state_grid_.col(i).block<4,1>(B2GRID + GRID_S, 0) = gridSimAgnostic(B2GRID, i-1, dt_col_);
-        correctOverlap(B2GRID, A1GRID, i, r_B2, r_A1);
-        correctOverlap(B2GRID, A2GRID, i, r_B2, r_A2);
-        correctOverlap(B2GRID, B1GRID, i, r_B2, r_B1);
-        correctOverlap(B2GRID, PKGRID, i, r_B2, r_PK);
-        correctOverlap(B2GRID, i, r_B2, WALL_UP);
-        correctOverlap(B2GRID, i, r_B2, WALL_DOWN);
-        correctOverlap(B2GRID, i, r_B2, WALL_RIGHT);
-        correctOverlap(B2GRID, i, r_B2, WALL_LEFT);
         state_grid_.col(i)           [PKGRID + GRID_T]    = t_ + dt_col_ * i;
         state_grid_.col(i).block<2,1>(PKGRID + GRID_U, 0) = Vector2d(0.0, 0.0);
         state_grid_.col(i).block<4,1>(PKGRID + GRID_S, 0) = gridSimAgnostic(PKGRID, i-1, dt_col_);
-        correctOverlap(PKGRID, A1GRID, i, r_PK, r_A1);
-        correctOverlap(PKGRID, A2GRID, i, r_PK, r_A2);
-        correctOverlap(PKGRID, B1GRID, i, r_PK, r_B1);
-        correctOverlap(PKGRID, B2GRID, i, r_PK, r_B2);
-        correctOverlap(PKGRID, i, r_PK, WALL_UP);
-        correctOverlap(PKGRID, i, r_PK, WALL_DOWN);
-        correctOverlap(PKGRID, i, r_PK, WALL_RIGHT);
-        correctOverlap(PKGRID, i, r_PK, WALL_LEFT);
     }
 }
 
@@ -264,57 +225,16 @@ std::vector<int> GameSim::carryOutFirstCollision(std::vector<Collision> &collisi
 
     // Get most imminent collision
     Collision imminent_collision = collisions[collisions.size()-1]; collisions.pop_back();
+
+    // Don't allow puck to score multiple times
+    if ((imminent_collision.i_ == PKGRID || imminent_collision.j_ == PKGRID) && scored_)
+        return checks;
+
+    // Keep track of handled collisions
     col_tracker[collisionToKey(imminent_collision)]++;
 
     // Update base index
-    base_idx = static_cast<int>(floor((imminent_collision.t_ - t_) / dt_col_));
-
-//    // If this same collision has been handled too many times within dt, then kill collision logic for the bodies involved
-//    // for the rest of the time window (skip forward in time until the input changes OR some other collision causes a change)
-//    if (col_tracker[collisionToKey(imminent_collision)] >= MAX_CONCURRENT_COLLS)
-//    {
-//        switch (imminent_collision.COLLISION_ID_)
-//        {
-//        case INTER_AGENT:
-//        {
-//            int id_i = imminent_collision.i_;
-//            int id_j = imminent_collision.j_;
-
-//            // In a situation like this, there very well may be overlap, so correct it (with a buffer to avoid future deadlocks)
-//            double _1, _4, r_i, r_j;
-//            Vector2d pos_i, pos_j, _3;
-//            getEntityInfo(id_i, base_idx, pos_i, _3, _4, r_i, _1);
-//            getEntityInfo(id_j, base_idx, pos_j, _3, _4, r_j, _1);
-//            Vector2d pij = pos_j - pos_i;
-//            double overlap = r_i + r_j - pij.norm();
-//            if (overlap > 0)
-//            {
-//                state_grid_.col(base_idx).block<2,1>(id_i + GRID_P, 0) -= 1.01 * r_i/(r_i+r_j) * overlap * pij;
-//                state_grid_.col(base_idx).block<2,1>(id_j + GRID_P, 0) += 1.01 * r_j/(r_i+r_j) * overlap * pij;
-//            }
-
-//            for (int i = base_idx+1; i <= COLLISION_GRID_POINTS; i++)
-//            {
-//                state_grid_.col(i).block<2,1>(id_i + GRID_P, 0) = state_grid_.col(base_idx).block<2,1>(id_i + GRID_P, 0);
-//                state_grid_.col(i).block<2,1>(id_i + GRID_V, 0).setZero();
-//                state_grid_.col(i).block<2,1>(id_j + GRID_P, 0) = state_grid_.col(base_idx).block<2,1>(id_j + GRID_P, 0);
-//                state_grid_.col(i).block<2,1>(id_j + GRID_V, 0).setZero();
-//            }
-//            break;
-//        }
-//        default:
-//        {
-//            int id_i = imminent_collision.i_;
-//            for (int i = base_idx+1; i <= COLLISION_GRID_POINTS; i++)
-//            {
-//                state_grid_.col(i).block<2,1>(id_i + GRID_P, 0) = state_grid_.col(base_idx).block<2,1>(id_i + GRID_P, 0);
-//                state_grid_.col(i).block<2,1>(id_i + GRID_V, 0).setZero();
-//            }
-//            break;
-//        }
-//        }
-//        return checks;
-//    }
+    base_idx = static_cast<int>(floor((imminent_collision.t_ - t_) / dt_col_)) + 1;
 
     // Carry out collision and update simulated grid points for collided objects from base index -> end
     switch(imminent_collision.COLLISION_ID_)
@@ -327,13 +247,13 @@ std::vector<int> GameSim::carryOutFirstCollision(std::vector<Collision> &collisi
         // Extract relevant physical parameters
         double _1, m_i, m_j, r_i, r_j;
         Vector2d _2, _3;
-        getEntityInfo(id_i, base_idx, _2, _3, m_i, r_i, _1);
-        getEntityInfo(id_j, base_idx, _2, _3, m_j, r_j, _1);
+        getEntityInfo(id_i, base_idx-1, _2, _3, m_i, r_i, _1);
+        getEntityInfo(id_j, base_idx-1, _2, _3, m_j, r_j, _1);
 
         // Simulate up to collision point
-        double dt_t = imminent_collision.t_ - state_grid_(id_i + GRID_T, base_idx);
-        Vector4d x_i_t = gridSimAgnostic(id_i, base_idx, dt_t);
-        Vector4d x_j_t = gridSimAgnostic(id_j, base_idx, dt_t);
+        double dt_t = imminent_collision.t_ - state_grid_(id_i + GRID_T, base_idx-1);
+        Vector4d x_i_t = gridSimAgnostic(id_i, base_idx-1, dt_t);
+        Vector4d x_j_t = gridSimAgnostic(id_j, base_idx-1, dt_t);
 
         // Correct any overlap due to linear constant velocity approximation
         Vector2d pij = x_j_t.block<2,1>(PX,0) - x_i_t.block<2,1>(PX,0);
@@ -362,14 +282,14 @@ std::vector<int> GameSim::carryOutFirstCollision(std::vector<Collision> &collisi
         }
 
         // Propagate states to next grid points
-        Vector2d u_i_t = state_grid_.col(base_idx).block<2,1>(id_i + GRID_U, 0);
-        Vector2d u_j_t = state_grid_.col(base_idx).block<2,1>(id_j + GRID_U, 0);
-        state_grid_.col(base_idx + 1).block<4,1>(id_i + GRID_S, 0) = simAgnostic(id_i, x_i_t, u_i_t, dt_col_ - dt_t);
-        state_grid_.col(base_idx + 1).block<4,1>(id_j + GRID_S, 0) = simAgnostic(id_j, x_j_t, u_j_t, dt_col_ - dt_t);
-        correctOverlap(id_i, id_j, base_idx + 1, r_i, r_j);
+        Vector2d u_i_t = state_grid_.col(base_idx-1).block<2,1>(id_i + GRID_U, 0);
+        Vector2d u_j_t = state_grid_.col(base_idx-1).block<2,1>(id_j + GRID_U, 0);
+        state_grid_.col(base_idx).block<4,1>(id_i + GRID_S, 0) = simAgnostic(id_i, x_i_t, u_i_t, dt_col_ - dt_t);
+        state_grid_.col(base_idx).block<4,1>(id_j + GRID_S, 0) = simAgnostic(id_j, x_j_t, u_j_t, dt_col_ - dt_t);
+        correctOverlap(id_i, id_j, base_idx, r_i, r_j);
 
         // Update rest of grid points
-        for (int i = base_idx + 2; i <= COLLISION_GRID_POINTS; i++)
+        for (int i = base_idx + 1; i <= COLLISION_GRID_POINTS; i++)
         {
             state_grid_.col(i).block<4,1>(id_i + GRID_S, 0) = gridSimAgnostic(id_i, i-1, dt_col_);
             state_grid_.col(i).block<4,1>(id_j + GRID_S, 0) = gridSimAgnostic(id_j, i-1, dt_col_);
@@ -382,37 +302,38 @@ std::vector<int> GameSim::carryOutFirstCollision(std::vector<Collision> &collisi
         int id = imminent_collision.i_;
         Vector2d _2, _3;
         double _1, _4, r_i;
-        getEntityInfo(id, base_idx, _2, _3, _1, r_i, _4);
+        getEntityInfo(id, base_idx-1, _2, _3, _1, r_i, _4);
 
         // Simulate up to collision point
-        double dt_t = imminent_collision.t_ - state_grid_(id + GRID_T, base_idx);
-        Vector4d x_i_t = gridSimAgnostic(id, base_idx, dt_t);
+        double dt_t = imminent_collision.t_ - state_grid_(id + GRID_T, base_idx-1);
+        Vector4d x_i_t = gridSimAgnostic(id, base_idx-1, dt_t);
 
         // Carry out collision
         switch(imminent_collision.COLLISION_ID_)
         {
-        case WALL_UP:    x_i_t(VY) *= -1.0; break;
-        case WALL_DOWN:  x_i_t(VY) *= -1.0; break;
-        case WALL_RIGHT: x_i_t(VX) *= -1.0; break;
-        case WALL_LEFT:  x_i_t(VX) *= -1.0; break;
+        case WALL_UP:    if (x_i_t(VY) > 0) x_i_t(VY) *= -1.0; break;
+        case WALL_DOWN:  if (x_i_t(VY) < 0) x_i_t(VY) *= -1.0; break;
+        case WALL_RIGHT: if (x_i_t(VX) > 0) x_i_t(VX) *= -1.0; break;
+        case WALL_LEFT:  if (x_i_t(VX) < 0) x_i_t(VX) *= -1.0; break;
         }
 
         // If it's a puck and someone scored, then increment score count and reset puck state
         if (id == PKGRID && (imminent_collision.COLLISION_ID_ == WALL_LEFT || imminent_collision.COLLISION_ID_ == WALL_RIGHT) &&
             x_i_t(PY) < goal_height_ / 2.0 && x_i_t(PY) > -goal_height_ / 2.0)
         {
-            imminent_collision.COLLISION_ID_ == WALL_LEFT ? state_.TeamAScore++ : state_.TeamBScore++;
-            state_grid_.col(base_idx + 1).block<4,1>(id + GRID_S, 0).setZero();
+            if (!scored_) imminent_collision.COLLISION_ID_ == WALL_RIGHT ? state_.TeamAScore++ : state_.TeamBScore++;
+            state_grid_.col(base_idx).block<4,1>(id + GRID_S, 0).setZero();
+            scored_ = true;
         }
         else // Otherwise, propagate state to next grid point
         {
-            Vector2d u_i_t = state_grid_.col(base_idx).block<2,1>(id + GRID_U, 0);
-            state_grid_.col(base_idx + 1).block<4,1>(id + GRID_S, 0) = simAgnostic(id, x_i_t, u_i_t, dt_col_ - dt_t);
-            correctOverlap(id, base_idx + 1, r_i, imminent_collision.COLLISION_ID_);
+            Vector2d u_i_t = state_grid_.col(base_idx-1).block<2,1>(id + GRID_U, 0);
+            state_grid_.col(base_idx).block<4,1>(id + GRID_S, 0) = simAgnostic(id, x_i_t, u_i_t, dt_col_ - dt_t);
+            correctOverlap(id, base_idx, r_i, imminent_collision.COLLISION_ID_);
         }
 
         // Update rest of grid points
-        for (int i = base_idx + 2; i <= COLLISION_GRID_POINTS; i++)
+        for (int i = base_idx + 1; i <= COLLISION_GRID_POINTS; i++)
         {
             state_grid_.col(i).block<4,1>(id + GRID_S, 0) = gridSimAgnostic(id, i-1, dt_col_);
             correctOverlap(id, i, r_i, imminent_collision.COLLISION_ID_);
